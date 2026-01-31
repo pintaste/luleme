@@ -1,10 +1,12 @@
 package com.luleme.ui.screens.settings
 
+import androidx.annotation.Keep
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
+import com.google.gson.annotations.SerializedName
 import com.google.gson.stream.JsonReader
 import com.luleme.domain.model.Record
 import com.luleme.domain.model.UserSettings
@@ -143,9 +145,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    @Keep
     private data class BackupPayload(
+        @SerializedName("version")
         val version: Int,
+        @SerializedName("exportedAt")
         val exportedAt: Long,
+        @SerializedName("records")
         val records: List<Record>
     )
 
@@ -155,18 +161,13 @@ class SettingsViewModel @Inject constructor(
         val reader = JsonReader(StringReader(sanitized))
         reader.isLenient = true
         val element = JsonParser.parseReader(reader)
-        return when {
-            element.isJsonArray -> parseRecordsArray(element)
-            element.isJsonObject -> {
-                val obj = element.asJsonObject
-                val recordsElement = if (obj.has("records")) obj.get("records") else null
-                if (recordsElement != null && recordsElement.isJsonArray) {
-                    parseRecordsArray(recordsElement)
-                } else {
-                    null
-                }
-            }
-            else -> null
+        if (!element.isJsonObject) return null
+        val obj = element.asJsonObject
+        val recordsElement = if (obj.has("records")) obj.get("records") else null
+        return if (recordsElement != null && recordsElement.isJsonArray) {
+            parseRecordsArray(recordsElement)
+        } else {
+            null
         }
     }
 
