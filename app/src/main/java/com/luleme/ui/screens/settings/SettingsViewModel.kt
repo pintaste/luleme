@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
+import com.google.gson.stream.JsonReader
 import com.luleme.domain.model.Record
 import com.luleme.domain.model.UserSettings
 import com.luleme.domain.repository.RecordRepository
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
+import java.io.StringReader
 import javax.inject.Inject
 
 data class SettingsUiState(
@@ -148,7 +150,11 @@ class SettingsViewModel @Inject constructor(
     )
 
     private fun parseRecordsFromJson(json: String): List<Record>? {
-        val element = JsonParser.parseString(json)
+        val sanitized = json.trim().trimStart('\uFEFF')
+        if (sanitized.isEmpty()) return null
+        val reader = JsonReader(StringReader(sanitized))
+        reader.isLenient = true
+        val element = JsonParser.parseReader(reader)
         return when {
             element.isJsonArray -> parseRecordsArray(element)
             element.isJsonObject -> {

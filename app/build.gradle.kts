@@ -5,6 +5,24 @@ plugins {
     alias(libs.plugins.google.ksp)
 }
 
+fun computeVersionCode(versionName: String): Int {
+    val parts = versionName.split(".", "-", "_")
+    val numbers = parts.mapNotNull { it.toIntOrNull() }
+    val major = numbers.getOrElse(0) { 0 }
+    val minor = numbers.getOrElse(1) { 0 }
+    val patch = numbers.getOrElse(2) { 0 }
+    return major * 10000 + minor * 100 + patch
+}
+
+val versionNameFromFile = rootProject.file("VERSION")
+    .takeIf { it.exists() }
+    ?.readText()
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: "1.0.0"
+
+val versionCodeFromFile = computeVersionCode(versionNameFromFile)
+
 android {
     namespace = "com.luleme"
     compileSdk = 34
@@ -13,8 +31,8 @@ android {
         applicationId = "com.luleme"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = versionCodeFromFile
+        versionName = versionNameFromFile
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

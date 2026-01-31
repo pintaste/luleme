@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.luleme.BuildConfig
 import com.luleme.ui.components.CuteSwitch
 import com.luleme.ui.components.SettingGroup
 import com.luleme.ui.components.SettingItem
@@ -83,7 +84,7 @@ fun SettingsScreen(
             scope.launch {
                 val json = viewModel.getAllRecordsJson()
                 context.contentResolver.openOutputStream(it)?.use { stream ->
-                    stream.write(json.toByteArray())
+                    stream.write(json.toByteArray(Charsets.UTF_8))
                 }
                 Toast.makeText(context, "数据导出成功 ✨", Toast.LENGTH_SHORT).show()
             }
@@ -97,7 +98,7 @@ fun SettingsScreen(
             scope.launch {
                 try {
                     context.contentResolver.openInputStream(it)?.use { stream ->
-                        val json = stream.bufferedReader().use { reader -> reader.readText() }
+                        val json = stream.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() }
                         if (viewModel.restoreData(json)) {
                             Toast.makeText(context, "数据恢复成功 ✨", Toast.LENGTH_SHORT).show()
                         } else {
@@ -265,7 +266,7 @@ fun SettingsScreen(
                     title = "恢复数据",
                     subtitle = "从 JSON 文件导入",
                     iconTint = MaterialTheme.colorScheme.primary,
-                    onClick = { importLauncher.launch(arrayOf("application/json")) }
+                    onClick = { importLauncher.launch(arrayOf("application/json", "text/json", "text/plain")) }
                 )
                 
                 SettingItem(
@@ -280,7 +281,7 @@ fun SettingsScreen(
         
         item {
             Text(
-                text = "Luleme v1.0.0",
+                text = "Luleme v${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier
