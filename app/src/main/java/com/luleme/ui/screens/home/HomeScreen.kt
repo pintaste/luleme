@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FlightTakeoff
@@ -102,7 +103,8 @@ fun HomeScreen(
             is HomeUiState.Success -> {
                 HomeContent(
                     state = state,
-                    onRecordClick = { viewModel.recordToday() }
+                    onRecordClick = { viewModel.recordToday() },
+                    onUndoClick = { viewModel.undoTodayRecord() }
                 )
             }
         }
@@ -112,7 +114,8 @@ fun HomeScreen(
 @Composable
 fun HomeContent(
     state: HomeUiState.Success,
-    onRecordClick: () -> Unit
+    onRecordClick: () -> Unit,
+    onUndoClick: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -182,17 +185,90 @@ fun HomeContent(
         }
     }
 
-    // Floating Action Button
+    // Floating Action Buttons
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(bottom = 32.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        TakeoffButton(
-            hasRecordedToday = state.todayRecords.isNotEmpty(),
-            onTakeoff = onRecordClick
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 撤销按钮 - 只在有今日记录时显示
+            AnimatedVisibility(
+                visible = state.todayRecords.isNotEmpty(),
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
+            ) {
+                UndoButton(
+                    todayCount = state.todayRecords.size,
+                    onUndo = onUndoClick
+                )
+            }
+
+            // 起飞按钮
+            TakeoffButton(
+                hasRecordedToday = state.todayRecords.isNotEmpty(),
+                onTakeoff = onRecordClick
+            )
+        }
+    }
+}
+
+@Composable
+fun UndoButton(
+    todayCount: Int,
+    onUndo: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var isUndoing by remember { mutableStateOf(false) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isUndoing) 0.85f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "undo_button_scale"
+    )
+
+    val handleUndo = {
+        if (!isUndoing && todayCount > 0) {
+            isUndoing = true
+
+            scope.launch {
+                delay(200)
+                onUndo()
+                delay(100)
+                isUndoing = false
+            }
+        }
+    }
+
+    Button(
+        onClick = { handleUndo() },
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 0.dp
+        ),
+        shape = MaterialTheme.shapes.extraLarge,
+        modifier = Modifier
+            .height(48.dp)
+            .scale(scale)
+    ) {
+        Icon(
+            Icons.AutoMirrored.Rounded.Undo,
+            contentDescription = "撤销起飞",
+            modifier = Modifier.size(18.dp)
         )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("撤销")
     }
 }
 

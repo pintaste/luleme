@@ -26,15 +26,24 @@ class RecordRepositoryImpl @Inject constructor(
     override suspend fun addRecord(note: String?) {
         val today = LocalDate.now()
         val dateString = today.format(DateTimeFormatter.ISO_DATE)
-        
+
         val encryptedNote = note?.let { encryptionManager.encryptData(it) }
-        
+
         val entity = RecordEntity(
             timestamp = System.currentTimeMillis(),
             date = dateString,
             note = encryptedNote
         )
         dao.insertRecord(entity)
+    }
+
+    override suspend fun deleteLatestTodayRecord() {
+        val todayRecords = getTodayRecords()
+        if (todayRecords.isNotEmpty()) {
+            // 删除最新的记录（timestamp 最大的）
+            val latestRecord = todayRecords.maxByOrNull { it.timestamp }
+            latestRecord?.let { dao.deleteRecord(it.id) }
+        }
     }
 
     override suspend fun clearAll() {
