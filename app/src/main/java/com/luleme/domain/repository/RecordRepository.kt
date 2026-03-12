@@ -6,6 +6,7 @@ interface RecordRepository {
     suspend fun getTodayRecords(): List<Record>
     suspend fun getRecordsBetween(startDate: String, endDate: String): List<Record>
     suspend fun addRecord(note: String? = null)
+    suspend fun deleteLatestTodayRecord()
     suspend fun clearAll()
     suspend fun getAllRecords(): List<Record>
     suspend fun importRecords(records: List<Record>)
