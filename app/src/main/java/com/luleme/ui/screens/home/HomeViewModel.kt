@@ -89,4 +89,15 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
+
+    fun undoTodayRecord() {
+        viewModelScope.launch {
+            try {
+                recordRepository.deleteLatestTodayRecord()
+                loadData(showLoading = false)
+            } catch (e: Exception) {
+                // Handle error
+            }
+        }
+    }
 }
