@@ -67,7 +67,7 @@ fun CuteCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = onClick ?: {}
     ) {
-        Box(modifier = Modifier.padding(20.dp)) {
+        Box(modifier = Modifier.padding(12.dp)) {
             content()
         }
     }
