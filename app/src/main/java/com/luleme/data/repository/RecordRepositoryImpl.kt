@@ -71,6 +71,10 @@ class RecordRepositoryImpl @Inject constructor(
         dao.insertRecords(entities)
     }
 
+    override suspend fun getLatestRecord(): Record? {
+        return dao.getLatestRecord()?.toDomain()
+    }
+
     private fun RecordEntity.toDomain(): Record {
         val decryptedNote = this.note?.let { encryptionManager.decryptData(it) }
         return Record(

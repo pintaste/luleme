@@ -21,7 +21,8 @@ sealed class HomeUiState {
     data class Success(
         val todayRecords: List<Record>,
         val weekCount: Int,
-        val age: Int
+        val age: Int,
+        val latestRecord: Record?
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }
@@ -57,13 +58,17 @@ class HomeViewModel @Inject constructor(
                     endOfWeek.format(DateTimeFormatter.ISO_DATE)
                 )
                 
+                // Get latest record
+                val latestRecord = recordRepository.getLatestRecord()
+                
                 val settings = userSettingsRepository.getSettings()
                 val age = settings?.age ?: 25 // Default age
 
                 _uiState.value = HomeUiState.Success(
                     todayRecords = todayRecords,
                     weekCount = weekRecords.size,
-                    age = age
+                    age = age,
+                    latestRecord = latestRecord
                 )
             } catch (e: Exception) {
                 // If we are already showing data (Success), don't replace it with an error screen on refresh failure.
