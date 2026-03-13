@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.luleme.domain.model.Record
 import com.luleme.domain.repository.RecordRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,10 +21,13 @@ import javax.inject.Inject
 data class StatisticsUiState(
     val weekData: Map<DayOfWeek, Int> = emptyMap(),
     val monthData: Map<LocalDate, Int> = emptyMap(),
+    val allRecords: List<Record> = emptyList(),
     val totalCount: Int = 0,
     val maxStreak: Int = 0,
     val averageFrequency: Float = 0f,
-    val loading: Boolean = false
+    val loading: Boolean = false,
+    val snackbarMessage: String? = null,
+    val countdown: Int = 0
 )
 
 @HiltViewModel
@@ -32,6 +37,10 @@ class StatisticsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(StatisticsUiState(loading = true))
     val uiState: StateFlow<StatisticsUiState> = _uiState.asStateFlow()
+
+    // 保存待撤销删除的记录
+    private var pendingDeleteRecord: Record? = null
+    private var countdownJob: Job? = null
 
     init {
         loadData()
@@ -76,9 +85,10 @@ class StatisticsViewModel @Inject constructor(
                 0f
             }
 
-            _uiState.value = StatisticsUiState(
+            _uiState.value = _uiState.value.copy(
                 weekData = weekData,
                 monthData = monthData,
+                allRecords = allRecords.sortedByDescending { it.timestamp },
                 totalCount = totalCount,
                 maxStreak = maxStreak,
                 averageFrequency = average,
@@ -93,17 +103,6 @@ class StatisticsViewModel @Inject constructor(
         val sortedDates = records.map { LocalDate.parse(it.date) }.distinct().sorted()
         var maxStreak = 0
         var currentStreak = 0
-        
-        // This logic calculates consecutive days with records. 
-        // Note: Requirements say "Longest continuous record days", assuming it means days with at least one record.
-        // However, for this app, maybe streak means "days WITHOUT record"? 
-        // Usually streaks in habit trackers are for "doing the habit". 
-        // But here, maybe "not doing it" is the goal? 
-        // Requirements say "Core concept: Scientific management". 
-        // Let's assume streak means "Consecutive days with records" for now as per standard definition,
-        // although "No Fap" apps usually track days *without*.
-        // The requirements don't explicitly say "No Fap". It says "Manage frequency".
-        // "Longest continuous record days" (最长连续记录天数) implies days WITH records.
         
         for (i in 0 until sortedDates.size) {
             if (i == 0) {
@@ -120,7 +119,75 @@ class StatisticsViewModel @Inject constructor(
             }
         }
         maxStreak = maxOf(maxStreak, currentStreak)
-        
+
         return maxStreak
+    }
+
+    fun deleteRecord(record: Record) {
+        countdownJob?.cancel()
+        viewModelScope.launch {
+            // 保存记录以便撤销
+            pendingDeleteRecord = record
+
+            // 从UI中移除记录并设置消息
+            _uiState.value = _uiState.value.copy(
+                allRecords = _uiState.value.allRecords.filter { it.id != record.id },
+                snackbarMessage = "已删除",
+                countdown = 4 // SnackbarDuration.Short 约为 4 秒
+            )
+
+            // 开始倒计时
+            countdownJob = viewModelScope.launch {
+                for (i in 4 downTo 1) {
+                    _uiState.value = _uiState.value.copy(countdown = i)
+                    delay(1000)
+                }
+                _uiState.value = _uiState.value.copy(countdown = 0)
+            }
+
+            // 实际删除记录
+            recordRepository.deleteRecord(record.id)
+
+            // 重新加载统计数据
+            loadData()
+        }
+    }
+
+    fun undoDelete() {
+        countdownJob?.cancel()
+        viewModelScope.launch {
+            pendingDeleteRecord?.let { record ->
+                // 重新添加记录
+                recordRepository.importRecords(listOf(record))
+
+                // 清除待撤销记录
+                pendingDeleteRecord = null
+
+                // 清除Snackbar消息和倒计时
+                _uiState.value = _uiState.value.copy(
+                    snackbarMessage = null,
+                    countdown = 0
+                )
+
+                // 重新加载数据
+                loadData()
+            }
+        }
+    }
+
+    fun clearSnackbarMessage() {
+        countdownJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            snackbarMessage = null,
+            countdown = 0
+        )
+        pendingDeleteRecord = null
+    }
+    
+    fun addRecord(record: Record) {
+        viewModelScope.launch {
+            recordRepository.importRecords(listOf(record))
+            loadData()
+        }
     }
 }
