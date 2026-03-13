@@ -55,15 +55,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.luleme.domain.model.Record
 import com.luleme.ui.components.CuteCard
 import com.luleme.ui.theme.CuteOrange
 import com.luleme.ui.theme.CutePink
 import com.luleme.ui.theme.CuteYellow
 import com.luleme.ui.theme.SecondaryLight
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -134,7 +140,7 @@ fun HomeContent(
             }
         }
 
-        // 3. Stats Section
+        // 4. Stats Section
         item {
             Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                 Column {
@@ -167,6 +173,13 @@ fun HomeContent(
                                 icon = Icons.Rounded.Favorite,
                                 iconTint = CutePink
                             )
+                        }
+                    }
+                    
+                    // Last Takeoff Section
+                    if (state.latestRecord != null) {
+                        Box(modifier = Modifier.padding(top = 16.dp)) {
+                            LastTakeoffCard(latestRecord = state.latestRecord)
                         }
                     }
                 }
@@ -566,5 +579,72 @@ fun getRecommendedWeeklyFrequency(age: Int): IntRange {
         in 26..35 -> 1..2
         in 36..45 -> 1..1
         else -> 1..1
+    }
+}
+
+@Composable
+fun LastTakeoffCard(latestRecord: Record) {
+    val latestDateTime = LocalDateTime.ofInstant(
+        Instant.ofEpochMilli(latestRecord.timestamp),
+        ZoneId.systemDefault()
+    )
+    val formattedDate = latestDateTime.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日", Locale.CHINA))
+    
+    val now = LocalDateTime.now()
+    val period = java.time.Period.between(latestDateTime.toLocalDate(), now.toLocalDate())
+    val duration = java.time.Duration.between(latestDateTime, now)
+    val years = period.years
+    val months = period.months
+    val days = period.days
+    val hours = duration.toHours() % 24
+    val minutes = duration.toMinutes() % 60
+    val seconds = duration.seconds % 60
+    
+    val timeSinceText = when {
+        years > 0 -> "${years}年前"
+        months > 0 -> "${months}个月前"
+        days > 0 -> "${days}天前"
+        hours > 0 -> "${hours}小时前"
+        minutes > 0 -> "${minutes}分钟前"
+        seconds > 0 -> "${seconds}秒前"
+        else -> "刚刚"
+    }
+    
+    CuteCard {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.FlightTakeoff,
+                    contentDescription = "上次起飞",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "上次起飞",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formattedDate,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = timeSinceText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

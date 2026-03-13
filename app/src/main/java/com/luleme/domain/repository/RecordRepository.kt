@@ -11,4 +11,5 @@ interface RecordRepository {
     suspend fun clearAll()
     suspend fun getAllRecords(): List<Record>
     suspend fun importRecords(records: List<Record>)
+    suspend fun getLatestRecord(): Record?
 }
