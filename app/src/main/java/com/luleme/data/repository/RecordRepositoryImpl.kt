@@ -46,6 +46,10 @@ class RecordRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteRecord(id: Long) {
+        dao.deleteRecord(id)
+    }
+
     override suspend fun clearAll() {
         dao.clearAll()
     }

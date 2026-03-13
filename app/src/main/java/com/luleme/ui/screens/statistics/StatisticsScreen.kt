@@ -17,28 +17,46 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.ArrowDropUp
+import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.CalendarViewWeek
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,15 +66,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.luleme.domain.model.Record
 import com.luleme.ui.components.CuteCard
 import com.luleme.ui.theme.CutePink
 import com.luleme.ui.theme.CuteYellow
-import com.luleme.ui.theme.PrimaryLight
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 @Composable
@@ -65,24 +88,513 @@ fun StatisticsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("本周", "本月", "全部")
+    val tabs = listOf("本周", "本月", "时间线", "全部")
+    val snackbarHostState = remember { SnackbarHostState() }
+    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title) }
+    // 监听Snackbar消息并显示
+    LaunchedEffect(uiState.snackbarMessage) {
+        uiState.snackbarMessage?.let { message ->
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = "撤销",
+                duration = SnackbarDuration.Short
+            )
+
+            when (result) {
+                androidx.compose.material3.SnackbarResult.ActionPerformed -> {
+                    // 用户点击了撤销按钮
+                    viewModel.undoDelete()
+                }
+                androidx.compose.material3.SnackbarResult.Dismissed -> {
+                    // Snackbar被自动关闭（超时）
+                    viewModel.clearSnackbarMessage()
+                }
+            }
+        }
+    }
+
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(
+                    action = {
+                        data.visuals.actionLabel?.let { actionLabel ->
+                            TextButton(onClick = { data.performAction() }) {
+                                Text(actionLabel, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    shape = MaterialTheme.shapes.extraLarge,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (uiState.countdown > 0) {
+                            Text(
+                                text = "${uiState.countdown}s",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                        Text(
+                            data.visuals.message,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            TabRow(selectedTabIndex = selectedTab) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(title) }
+                    )
+                }
+            }
+
+            when (selectedTab) {
+                0 -> WeekView(uiState.weekData)
+                1 -> MonthView(
+                    monthData = uiState.monthData,
+                    onDateClick = { date ->
+                        selectedDate = date
+                        selectedTab = 2 // 切换到时间线视图
+                    }
+                )
+                2 -> {
+                    var showAddDialog by remember { mutableStateOf(false) }
+                    var selectedAddDate by remember { mutableStateOf<LocalDate?>(null) }
+                    var selectedHour by remember { mutableStateOf(LocalTime.now().hour) }
+                    var selectedMinute by remember { mutableStateOf(LocalTime.now().minute) }
+                    
+                    // 添加一个状态来控制是否显示全部记录
+                    var showAllRecords by remember { mutableStateOf(false) }
+                    
+                    TimelineView(
+                        records = if (selectedDate != null && !showAllRecords) {
+                            uiState.allRecords.filter {
+                                LocalDateTime.ofInstant(Instant.ofEpochMilli(it.timestamp), ZoneId.systemDefault()).toLocalDate() == selectedDate
+                            }
+                        } else {
+                            uiState.allRecords
+                        },
+                        onDeleteRecord = viewModel::deleteRecord,
+                        onAddRecord = { date ->
+                            selectedAddDate = date
+                            selectedHour = LocalTime.now().hour
+                            selectedMinute = LocalTime.now().minute
+                            showAddDialog = true
+                        },
+                        selectedDate = if (showAllRecords) null else selectedDate,
+                        onToggleView = if (selectedDate != null) {
+                            { showAllRecords = !showAllRecords }
+                        } else {
+                            null
+                        },
+                        showAll = showAllRecords,
+                        onDateClick = { date ->
+                            selectedDate = date
+                            showAllRecords = false
+                        }
+                    )
+                    
+                    // 添加记录的对话框
+                    if (showAddDialog && selectedAddDate != null) {
+                        AlertDialog(
+                            onDismissRequest = { showAddDialog = false },
+                            title = { Text("添加记录") },
+                            text = {
+                                Column {
+                                    Text("为 ${selectedAddDate?.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日"))} 添加记录")
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    
+                                    // 时间选择器
+                                    Text("选择时间:")
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // 小时选择
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        selectedHour = if (selectedHour > 0) selectedHour - 1 else 23
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = "减少", modifier = Modifier.size(20.dp))
+                                                }
+                                                Text(
+                                                    text = selectedHour.toString().padStart(2, '0'),
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    modifier = Modifier.width(48.dp),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        selectedHour = if (selectedHour < 23) selectedHour + 1 else 0
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropUp, contentDescription = "增加", modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                            Text("小时", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                        }
+                                        
+                                        Text(":", style = MaterialTheme.typography.headlineMedium)
+                                        
+                                        // 分钟选择
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        selectedMinute = if (selectedMinute > 0) selectedMinute - 1 else 59
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = "减少", modifier = Modifier.size(20.dp))
+                                                }
+                                                Text(
+                                                    text = selectedMinute.toString().padStart(2, '0'),
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    modifier = Modifier.width(48.dp),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        selectedMinute = if (selectedMinute < 59) selectedMinute + 1 else 0
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropUp, contentDescription = "增加", modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                            Text("分钟", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        // 创建一个新记录
+                                        val selectedTime = LocalTime.of(selectedHour, selectedMinute)
+                                        val localDateTime = LocalDateTime.of(selectedAddDate!!, selectedTime)
+                                        val timestamp = localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                        
+                                        val newRecord = Record(
+                                            id = System.currentTimeMillis(),
+                                            timestamp = timestamp,
+                                            date = selectedAddDate!!.format(DateTimeFormatter.ISO_DATE),
+                                            note = null
+                                        )
+                                        // 添加记录
+                                        viewModel.addRecord(newRecord)
+                                        showAddDialog = false
+                                    }
+                                ) {
+                                    Text("确定")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { showAddDialog = false }
+                                ) {
+                                    Text("取消")
+                                }
+                            }
+                        )
+                    }
+                }
+                3 -> AllTimeView(uiState)
+            }
+        }
+    }
+}
+
+@Composable
+fun TimelineView(
+    records: List<Record>,
+    onDeleteRecord: (Record) -> Unit,
+    onAddRecord: (LocalDate) -> Unit,
+    selectedDate: LocalDate? = null,
+    onToggleView: (() -> Unit)? = null,
+    showAll: Boolean = false,
+    onDateClick: (LocalDate) -> Unit
+) {
+    // 按日期分组记录
+    val recordsByDate = records.groupBy {
+        LocalDateTime.ofInstant(Instant.ofEpochMilli(it.timestamp), ZoneId.systemDefault()).toLocalDate()
+    }
+    
+    if (recordsByDate.isEmpty()) {
+        // 如果没有记录，使用选中的日期或今天
+        val displayDate = selectedDate ?: LocalDate.now()
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // 显示日期标题
+            item {
+                DateHeader(
+                    date = displayDate, 
+                    onAddRecord = { onAddRecord(displayDate) },
+                    onToggleView = onToggleView,
+                    showAll = showAll,
+                    onDateClick = onDateClick
+                )
+            }
+            // 显示暂无记录的提示
+            item {
+                Box(modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("暂无记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            recordsByDate.forEach { (date, dateRecords) ->
+                // 显示日期标题
+                item {
+                    DateHeader(
+                        date = date, 
+                        onAddRecord = { onAddRecord(date) },
+                        onToggleView = if (selectedDate != null) onToggleView else null,
+                        showAll = showAll,
+                        onDateClick = onDateClick
+                    )
+                }
+                // 显示该日期的所有记录
+                items(dateRecords) { record ->
+                    RecordItem(record = record, onDeleteRecord = onDeleteRecord)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DateHeader(
+    date: LocalDate, 
+    onAddRecord: () -> Unit, 
+    onToggleView: (() -> Unit)? = null, 
+    showAll: Boolean = false,
+    onDateClick: (LocalDate) -> Unit
+) {
+    val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日 EEEE", Locale.CHINA)
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp, horizontal = 20.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = date.format(dateFormatter),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        onDateClick(date)
+                    }
+                )
+                
+                if (onToggleView != null) {
+                    TextButton(
+                        onClick = onToggleView,
+                        modifier = Modifier.padding(0.dp),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (showAll) Icons.Rounded.CalendarToday else Icons.Rounded.CalendarViewWeek,
+                                contentDescription = if (showAll) "显示当天" else "显示全部",
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = if (showAll) "当天" else "全部",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+            }
+            
+            IconButton(onClick = onAddRecord) {
+                Icon(
+                    Icons.Rounded.Add,
+                    contentDescription = "添加记录",
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
+    }
+}
 
-        when (selectedTab) {
-            0 -> WeekView(uiState.weekData)
-            1 -> MonthView(uiState.monthData)
-            2 -> AllTimeView(uiState)
+@Composable
+fun RecordItem(record: Record, onDeleteRecord: (Record) -> Unit) {
+    val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp), ZoneId.systemDefault())
+    val formatter = DateTimeFormatter.ofPattern("HH:mm")
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = dateTime.format(formatter),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                if (!record.note.isNullOrEmpty()) {
+                    Text(
+                        text = record.note,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+            
+            IconButton(onClick = { onDeleteRecord(record) }) {
+                Icon(
+                    Icons.Rounded.Delete,
+                    contentDescription = "删除",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                )
+            }
         }
+    }
+}
+
+@Composable
+fun AllTimeView(uiState: StatisticsUiState) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(16.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            StatCard(
+                title = "总发射",
+                value = "${uiState.totalCount}",
+                icon = Icons.Rounded.Star,
+                color = CuteYellow,
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                title = "最长连续",
+                value = "${uiState.maxStreak}天",
+                icon = Icons.Rounded.Favorite,
+                color = CutePink,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        CuteCard {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("记录统计", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                StatRow("本周平均", "%.1f 次/天".format(uiState.totalCount.toFloat() / 7))
+                StatRow("本月累计", "${uiState.monthData.values.sum()} 次")
+                StatRow("活跃天数", "${uiState.allRecords.map { 
+                    Instant.ofEpochMilli(it.timestamp).atZone(ZoneId.systemDefault()).toLocalDate() 
+                }.distinct().size} 天")
+            }
+        }
+    }
+}
+
+@Composable
+fun StatCard(
+    title: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(value, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = color)
+            Text(title, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.8f))
+        }
+    }
+}
+
+@Composable
+fun StatRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -192,10 +704,26 @@ fun WeekView(weekData: Map<DayOfWeek, Int>) {
 }
 
 @Composable
-fun MonthView(monthData: Map<LocalDate, Int>) {
+fun MonthView(
+    monthData: Map<LocalDate, Int>,
+    onDateClick: (LocalDate) -> Unit
+) {
+    val today = LocalDate.now()
+    val startOfMonth = today.with(TemporalAdjusters.firstDayOfMonth())
+    val firstDayOfWeek = startOfMonth.dayOfWeek
+    
+    // 计算日历网格的行数
+    val daysInMonth = today.lengthOfMonth()
+    val startOffset = firstDayOfWeek.ordinal
+    val totalCells = startOffset + daysInMonth
+    val rows = (totalCells + 6) / 7 // 每星期7天，向上取整
+    
+    // 星期标题
+    val weekdays = listOf("日", "一", "二", "三", "四", "五", "六")
+    
     Column(modifier = Modifier.padding(16.dp)) {
         CuteCard {
-            Column {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -205,173 +733,112 @@ fun MonthView(monthData: Map<LocalDate, Int>) {
                         "📅 本月发射足迹", 
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
-                    Text(
-                        "${LocalDate.now().monthValue}月", 
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Days header
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                    listOf("一", "二", "三", "四", "五", "六", "日").forEach { 
-                        Text(
-                            text = it, 
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
+                // 星期标题行
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    weekdays.forEach {day ->
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = day,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                val dates = monthData.keys.sorted()
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(7),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    userScrollEnabled = false,
-                    modifier = Modifier.height(300.dp) // Approximate height for calendar
-                ) {
-                    val firstDay = dates.firstOrNull()
-                    if (firstDay != null) {
-                        val paddingDays = firstDay.dayOfWeek.value - 1
-                        items(paddingDays) {
-                            Box(modifier = Modifier.aspectRatio(1f))
+                // 日历网格
+                for (row in 0 until rows) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        for (col in 0 until 7) {
+                            val dayIndex = row * 7 + col
+                            val dayOfMonth = dayIndex - startOffset + 1
+                            
+                            val date = if (dayOfMonth in 1..daysInMonth) {
+                                startOfMonth.plusDays((dayOfMonth - 1).toLong())
+                            } else {
+                                null
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .padding(2.dp)
+                                    .clickable {
+                                        if (date != null) {
+                                            onDateClick(date)
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (date != null) {
+                                    val isToday = date == today
+                                    val recordCount = monthData[date] ?: 0
+                                    
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxHeight()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.weight(1f),
+                                            contentAlignment = Alignment.BottomCenter
+                                        ) {
+                                            Text(
+                                                text = dayOfMonth.toString(),
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                                                ),
+                                                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        if (recordCount > 0) {
+                                            // 根据记录数量设置不同的背景颜色
+                                            val backgroundColor = when {
+                                                recordCount >= 5 -> MaterialTheme.colorScheme.error
+                                                recordCount >= 3 -> MaterialTheme.colorScheme.tertiary
+                                                else -> MaterialTheme.colorScheme.primary
+                                            }
+                                            
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(top = 4.dp)
+                                                    .size(16.dp)
+                                                    .background(
+                                                        backgroundColor,
+                                                        shape = CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = recordCount.toString(),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        } else {
+                                            // 为了保持高度一致，添加一个占位符
+                                            Spacer(modifier = Modifier.height(20.dp))
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-
-                    items(dates) { date ->
-                        val count = monthData[date] ?: 0
-                        val isToday = date == LocalDate.now()
-                        val textColor = when {
-                            count >= 3 -> Color.White
-                            count == 2 -> MaterialTheme.colorScheme.onTertiary
-                            count == 1 -> MaterialTheme.colorScheme.onPrimaryContainer
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                        
-                        Box(
-                            modifier = Modifier
-                                .aspectRatio(1f)
-                                .clip(CircleShape)
-                                .background(
-                                    color = when {
-                                        count >= 3 -> MaterialTheme.colorScheme.error
-                                        count == 2 -> MaterialTheme.colorScheme.tertiary
-                                        count == 1 -> MaterialTheme.colorScheme.primaryContainer
-                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                    }
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (count >= 3) {
-                                Icon(
-                                    Icons.Rounded.Favorite,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            } else if (count > 0) {
-                                // Empty for 1-2, just color
-                            }
-
-                            Text(
-                                text = date.dayOfMonth.toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = textColor,
-                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
-                            )
-                            
-                            if (isToday && count == 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(4.dp)
-                                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                                        .align(Alignment.BottomCenter)
-                                )
-                            }
-                        }
+                    // 添加行间距
+                    if (row < rows - 1) {
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun AllTimeView(state: StatisticsUiState) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        StatCard(title = "累计记录", value = "${state.totalCount}", unit = "次")
-        StatCard(title = "最长连续", value = "${state.maxStreak}", unit = "天")
-        StatCard(title = "平均频率", value = String.format("%.1f", state.averageFrequency), unit = "次/周")
-        
-        AdviceCard(frequency = state.averageFrequency)
-    }
-}
-
-@Composable
-fun AdviceCard(frequency: Float) {
-    val message = when {
-        frequency < 1.0f -> "频率控制得很好，继续保持！👍"
-        frequency in 1.0f..3.0f -> "频率适中，生活很健康哦~ ✨"
-        frequency > 3.0f -> "最近有点频繁，要注意身体休息哦 🛌"
-        else -> "开始记录你的生活吧！"
-    }
-    
-    CuteCard(
-        backgroundColor = if (frequency > 3.0f) MaterialTheme.colorScheme.tertiaryContainer 
-                         else MaterialTheme.colorScheme.secondaryContainer
-    ) {
-        Column {
-            Text(
-                text = "💡 近期建议",
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = if (frequency > 3.0f) MaterialTheme.colorScheme.onTertiaryContainer
-                            else MaterialTheme.colorScheme.onSecondaryContainer
-                )
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (frequency > 3.0f) MaterialTheme.colorScheme.onTertiaryContainer
-                        else MaterialTheme.colorScheme.onSecondaryContainer
-            )
-        }
-    }
-}
-
-@Composable
-fun StatCard(title: String, value: String, unit: String) {
-    CuteCard {
-        Column {
-            Text(title, style = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                )
-                Text(
-                    text = unit,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(bottom = 4.dp, start = 4.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
