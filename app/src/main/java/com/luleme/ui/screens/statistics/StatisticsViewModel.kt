@@ -190,4 +190,17 @@ class StatisticsViewModel @Inject constructor(
             loadData()
         }
     }
+
+    suspend fun getMonthData(month: LocalDate): Map<LocalDate, Int> {
+        val allRecords = recordRepository.getAllRecords()
+        val startOfMonth = month.with(TemporalAdjusters.firstDayOfMonth())
+        val lengthOfMonth = month.lengthOfMonth()
+        val monthData = mutableMapOf<LocalDate, Int>()
+        for (i in 0 until lengthOfMonth) {
+            val date = startOfMonth.plusDays(i.toLong())
+            val count = allRecords.count { it.date == date.format(DateTimeFormatter.ISO_DATE) }
+            monthData[date] = count
+        }
+        return monthData
+    }
 }

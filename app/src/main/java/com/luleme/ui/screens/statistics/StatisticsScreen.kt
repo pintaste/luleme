@@ -1,12 +1,20 @@
 package com.luleme.ui.screens.statistics
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -23,16 +31,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowDropUp
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.CalendarViewWeek
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -88,9 +103,12 @@ fun StatisticsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("本周", "本月", "时间线", "全部")
+    val tabs = listOf("周视图", "月视图", "时间线", "全部")
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var currentMonth by remember { mutableStateOf(LocalDate.now()) }
+    var currentWeek by remember { mutableStateOf(LocalDate.now()) }
+    var isDirectTabClick by remember { mutableStateOf(false) }
 
     // 监听Snackbar消息并显示
     LaunchedEffect(uiState.snackbarMessage) {
@@ -157,29 +175,106 @@ fun StatisticsScreen(
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                        onClick = {
+                            if (index == 2) { // 时间线tab
+                                isDirectTabClick = true
+                                // 直接点击tab进入时间线时，清除选中日期
+                                selectedDate = null
+                            } else {
+                                isDirectTabClick = false
+                            }
+                            selectedTab = index
+                        },
                         text = { Text(title) }
                     )
                 }
             }
 
             when (selectedTab) {
-                0 -> WeekView(uiState.weekData)
-                1 -> MonthView(
-                    monthData = uiState.monthData,
-                    onDateClick = { date ->
-                        selectedDate = date
-                        selectedTab = 2 // 切换到时间线视图
+                0 -> {
+                    // 计算当前周的数据
+                    val startOfWeek = currentWeek.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                    val weekData = mutableMapOf<DayOfWeek, Int>()
+                    for (i in 0..6) {
+                        val date = startOfWeek.plusDays(i.toLong())
+                        val count = uiState.allRecords.count { 
+                            LocalDateTime.ofInstant(Instant.ofEpochMilli(it.timestamp), ZoneId.systemDefault()).toLocalDate() == date
+                        }
+                        weekData[date.dayOfWeek] = count
                     }
-                )
+                    
+                    WeekView(
+                        weekData = weekData,
+                        currentWeek = currentWeek,
+                        onDayClick = { date ->
+                            selectedDate = date
+                            isDirectTabClick = false // 通过点击日期进入时间线
+                            selectedTab = 2 // 切换到时间线视图
+                        },
+                        onPreviousWeek = { currentWeek = currentWeek.minusWeeks(1) },
+                        onNextWeek = { currentWeek = currentWeek.plusWeeks(1) }
+                    )
+                }
+                1 -> {
+                    // 显示当前月份和历史月份（只显示当前月和之前的月份，不显示未来月份）
+                    val monthsToShow = 3 // 显示当前月和前2个月
+                    val months = mutableListOf<LocalDate>()
+                    val monthDataMap = remember { mutableStateOf<Map<LocalDate, Map<LocalDate, Int>>>(emptyMap()) }
+                    
+                    // 计算要显示的月份：当前月和历史月份
+                    for (i in 0 until monthsToShow) {
+                        months.add(currentMonth.minusMonths(i.toLong()))
+                    }
+                    
+                    // 当记录变化时重新加载月份数据
+                    LaunchedEffect(months, uiState.allRecords) {
+                        val newMonthDataMap = mutableMapOf<LocalDate, Map<LocalDate, Int>>()
+                        months.forEach {
+                            newMonthDataMap[it] = viewModel.getMonthData(it)
+                        }
+                        monthDataMap.value = newMonthDataMap
+                    }
+                    
+                    // 垂直滚动显示多个月份
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 16.dp)
+                    ) {
+                        months.forEach { month ->
+                            item {
+                                MonthView(
+                                    monthData = monthDataMap.value.getOrDefault(month, emptyMap()),
+                                    currentMonth = month,
+                                    onDateClick = { date ->
+                                        selectedDate = date
+                                        isDirectTabClick = false // 通过点击日期进入时间线
+                                        selectedTab = 2 // 切换到时间线视图
+                                    },
+                                    onLoadPreviousMonth = {}
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                        }
+                    }
+                }
                 2 -> {
                     var showAddDialog by remember { mutableStateOf(false) }
                     var selectedAddDate by remember { mutableStateOf<LocalDate?>(null) }
                     var selectedHour by remember { mutableStateOf(LocalTime.now().hour) }
                     var selectedMinute by remember { mutableStateOf(LocalTime.now().minute) }
+                    var editingDate by remember { mutableStateOf<LocalDate?>(null) }
                     
                     // 添加一个状态来控制是否显示全部记录
-                    var showAllRecords by remember { mutableStateOf(false) }
+                    var showAllRecords by remember { mutableStateOf(true) }
+                    
+                    // 当进入时间线视图时，重置状态
+                    LaunchedEffect(selectedTab, selectedDate, isDirectTabClick) {
+                        if (selectedTab == 2) {
+                            // 如果有选中日期，显示该日期的记录
+                            // 如果没有选中日期（直接点击tab或从其他视图切换回来），显示全部记录
+                            showAllRecords = selectedDate == null
+                        }
+                    }
                     
                     TimelineView(
                         records = if (selectedDate != null && !showAllRecords) {
@@ -192,6 +287,7 @@ fun StatisticsScreen(
                         onDeleteRecord = viewModel::deleteRecord,
                         onAddRecord = { date ->
                             selectedAddDate = date
+                            editingDate = date
                             selectedHour = LocalTime.now().hour
                             selectedMinute = LocalTime.now().minute
                             showAddDialog = true
@@ -210,14 +306,128 @@ fun StatisticsScreen(
                     )
                     
                     // 添加记录的对话框
-                    if (showAddDialog && selectedAddDate != null) {
+                    if (showAddDialog && editingDate != null) {
                         AlertDialog(
                             onDismissRequest = { showAddDialog = false },
                             title = { Text("添加记录") },
                             text = {
                                 Column {
-                                    Text("为 ${selectedAddDate?.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日"))} 添加记录")
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    // 日期选择器
+                                    Text("选择日期:")
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // 年份选择
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        editingDate = editingDate?.minusYears(1)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = "减少", modifier = Modifier.size(20.dp))
+                                                }
+                                                Text(
+                                                    text = editingDate?.year.toString() ?: "",
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    modifier = Modifier.width(64.dp),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        editingDate = editingDate?.plusYears(1)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropUp, contentDescription = "增加", modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                            Text("年", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                        }
+                                        
+                                        Text("年", style = MaterialTheme.typography.bodyMedium)
+                                        
+                                        // 月份选择
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        editingDate = editingDate?.minusMonths(1)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = "减少", modifier = Modifier.size(20.dp))
+                                                }
+                                                Text(
+                                                    text = editingDate?.monthValue.toString().padStart(2, '0'),
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    modifier = Modifier.width(48.dp),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        editingDate = editingDate?.plusMonths(1)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropUp, contentDescription = "增加", modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                            Text("月", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                        }
+                                        
+                                        Text("月", style = MaterialTheme.typography.bodyMedium)
+                                        
+                                        // 日选择
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        editingDate = editingDate?.minusDays(1)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = "减少", modifier = Modifier.size(20.dp))
+                                                }
+                                                Text(
+                                                    text = editingDate?.dayOfMonth.toString().padStart(2, '0'),
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    modifier = Modifier.width(48.dp),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        editingDate = editingDate?.plusDays(1)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Rounded.ArrowDropUp, contentDescription = "增加", modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                            Text("日", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(24.dp))
                                     
                                     // 时间选择器
                                     Text("选择时间:")
@@ -304,13 +514,13 @@ fun StatisticsScreen(
                                     onClick = {
                                         // 创建一个新记录
                                         val selectedTime = LocalTime.of(selectedHour, selectedMinute)
-                                        val localDateTime = LocalDateTime.of(selectedAddDate!!, selectedTime)
+                                        val localDateTime = LocalDateTime.of(editingDate!!, selectedTime)
                                         val timestamp = localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                                         
                                         val newRecord = Record(
                                             id = System.currentTimeMillis(),
                                             timestamp = timestamp,
-                                            date = selectedAddDate!!.format(DateTimeFormatter.ISO_DATE),
+                                            date = editingDate!!.format(DateTimeFormatter.ISO_DATE),
                                             note = null
                                         )
                                         // 添加记录
@@ -385,6 +595,9 @@ fun TimelineView(
             modifier = Modifier.fillMaxSize()
         ) {
             recordsByDate.forEach { (date, dateRecords) ->
+                // 按时间排序记录
+                val sortedRecords = dateRecords.sortedBy { it.timestamp }
+                
                 // 显示日期标题
                 item {
                     DateHeader(
@@ -395,12 +608,83 @@ fun TimelineView(
                         onDateClick = onDateClick
                     )
                 }
-                // 显示该日期的所有记录
-                items(dateRecords) { record ->
-                    RecordItem(record = record, onDeleteRecord = onDeleteRecord)
+                
+                // 显示该日期的所有记录，并在记录之间显示时间间隔
+                sortedRecords.forEachIndexed { index, record ->
+                    // 如果不是第一条记录，显示与前一条记录的时间间隔
+                    if (index > 0) {
+                        val previousRecord = sortedRecords[index - 1]
+                        val diff = record.timestamp - previousRecord.timestamp
+                        val timeInterval = formatTimeInterval(diff)
+                        
+                        item {
+                            TimeIntervalItem(interval = timeInterval)
+                        }
+                    }
+                    
+                    // 显示记录
+                    item {
+                        RecordItem(
+                            record = record, 
+                            onDeleteRecord = onDeleteRecord
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+// 格式化时间间隔
+fun formatTimeInterval(milliseconds: Long): String {
+    val seconds = milliseconds / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    val days = hours / 24
+    
+    return when {
+        days > 0 -> "${days}天"
+        hours > 0 -> "${hours}小时"
+        minutes > 0 -> "${minutes}分钟"
+        else -> "${seconds}秒"
+    }
+}
+
+// 显示时间间隔的组件
+@Composable
+fun TimeIntervalItem(interval: String) {
+    // 在Composable上下文中获取颜色值
+    val dotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp, horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 左侧单个点
+        Box(
+            modifier = Modifier
+                .size(4.dp)
+                .background(dotColor, shape = CircleShape)
+                .align(Alignment.CenterVertically)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "间隔 $interval",
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        // 右侧单个点
+        Box(
+            modifier = Modifier
+                .size(4.dp)
+                .background(dotColor, shape = CircleShape)
+                .align(Alignment.CenterVertically)
+        )
     }
 }
 
@@ -599,20 +883,46 @@ fun StatRow(label: String, value: String) {
 }
 
 @Composable
-fun WeekView(weekData: Map<DayOfWeek, Int>) {
+fun WeekView(
+    weekData: Map<DayOfWeek, Int>,
+    currentWeek: LocalDate,
+    onDayClick: (LocalDate) -> Unit,
+    onPreviousWeek: () -> Unit,
+    onNextWeek: () -> Unit
+) {
+    // 计算当前周的开始和结束日期
+    val startOfWeek = currentWeek.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val endOfWeek = startOfWeek.plusDays(6)
+    val weekRange = "${startOfWeek.monthValue}/${startOfWeek.dayOfMonth} - ${endOfWeek.monthValue}/${endOfWeek.dayOfMonth}"
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val total = weekData.values.sum()
-        Text(
-            text = "$total",
-            style = MaterialTheme.typography.displayLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text("本周记录", style = MaterialTheme.typography.bodyMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onPreviousWeek) {
+                Icon(Icons.Rounded.ChevronLeft, contentDescription = "上一周", modifier = Modifier.size(24.dp))
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                val total = weekData.values.sum()
+                Text(
+                    text = "$total",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text("周记录", style = MaterialTheme.typography.bodyMedium)
+                Text(weekRange, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onNextWeek) {
+                Icon(Icons.Rounded.ChevronRight, contentDescription = "下一周", modifier = Modifier.size(24.dp))
+            }
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -647,7 +957,14 @@ fun WeekView(weekData: Map<DayOfWeek, Int>) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { selectedDay = if (isSelected) null else day }
+                            .clickable {
+                                selectedDay = if (isSelected) null else day
+                                // 计算对应的LocalDate
+                                val startOfWeek = currentWeek.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                                val daysUntilTarget = day.ordinal - DayOfWeek.MONDAY.ordinal
+                                val targetDate = startOfWeek.plusDays(daysUntilTarget.toLong())
+                                onDayClick(targetDate)
+                            }
                     ) {
                         Box(
                             modifier = Modifier
@@ -687,14 +1004,19 @@ fun WeekView(weekData: Map<DayOfWeek, Int>) {
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         
+                        // 计算当前周中该天的日期
+                        val startOfWeek = currentWeek.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                        val targetDate = startOfWeek.plusDays(day.ordinal.toLong())
+                        val isToday = targetDate == LocalDate.now()
+                        
                         Text(
                             text = day.getDisplayName(TextStyle.SHORT, Locale.CHINESE),
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (LocalDate.now().dayOfWeek == day) 
+                            color = if (isToday) 
                                 MaterialTheme.colorScheme.primary 
                             else 
                                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            fontWeight = if (LocalDate.now().dayOfWeek == day) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
                         )
                     }
                 }
@@ -706,20 +1028,28 @@ fun WeekView(weekData: Map<DayOfWeek, Int>) {
 @Composable
 fun MonthView(
     monthData: Map<LocalDate, Int>,
-    onDateClick: (LocalDate) -> Unit
+    currentMonth: LocalDate,
+    onDateClick: (LocalDate) -> Unit,
+    onLoadPreviousMonth: () -> Unit
 ) {
     val today = LocalDate.now()
-    val startOfMonth = today.with(TemporalAdjusters.firstDayOfMonth())
+    val startOfMonth = currentMonth.with(TemporalAdjusters.firstDayOfMonth())
     val firstDayOfWeek = startOfMonth.dayOfWeek
     
     // 计算日历网格的行数
-    val daysInMonth = today.lengthOfMonth()
+    val daysInMonth = currentMonth.lengthOfMonth()
     val startOffset = firstDayOfWeek.ordinal
     val totalCells = startOffset + daysInMonth
     val rows = (totalCells + 6) / 7 // 每星期7天，向上取整
     
     // 星期标题
     val weekdays = listOf("日", "一", "二", "三", "四", "五", "六")
+    
+    // 计算当月总起飞次数
+    val totalTakeoffs = monthData.values.sum()
+    
+    // 检查当前月份是否有记录
+    val hasRecords = totalTakeoffs > 0
     
     Column(modifier = Modifier.padding(16.dp)) {
         CuteCard {
@@ -730,8 +1060,13 @@ fun MonthView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "📅 本月发射足迹", 
+                        "📅 ${currentMonth.year}年${currentMonth.monthValue}月发射足迹", 
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        "共 ${totalTakeoffs} 次", 
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
                 
@@ -839,7 +1174,25 @@ fun MonthView(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
+                
+                // 显示无记录提示
+                if (!hasRecords) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "该月无记录",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
+        
+
     }
 }

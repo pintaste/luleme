@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -80,6 +81,11 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    // 当组件初始化时加载数据
+    LaunchedEffect(Unit) {
+        viewModel.loadData(showLoading = false)
+    }
 
     Box(
         modifier = Modifier
@@ -140,9 +146,9 @@ fun HomeContent(
             }
         }
 
-        // 4. Stats Section
+        // 4. Stats Section (4-grid layout)
         item {
-            Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+            Box(modifier = Modifier.padding(horizontal = 24.dp).padding(top = 8.dp)) {
                 Column {
                     Text(
                         text = "本周概览",
@@ -150,10 +156,13 @@ fun HomeContent(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
-                        modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
+                    
+                    // First row: 次数 and 状态
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
                     ) {
                         Box(modifier = Modifier.weight(1f)) {
                             StatsCard(
@@ -165,7 +174,6 @@ fun HomeContent(
                             )
                         }
                         Box(modifier = Modifier.weight(1f)) {
-                            // Placeholder for future stat, using age for now or just generic info
                             StatsCard(
                                 title = "状态",
                                 value = if (state.todayRecords.isNotEmpty()) "贤者模式" else "活跃",
@@ -176,10 +184,67 @@ fun HomeContent(
                         }
                     }
                     
-                    // Last Takeoff Section
-                    if (state.latestRecord != null) {
-                        Box(modifier = Modifier.padding(top = 16.dp)) {
-                            LastTakeoffCard(latestRecord = state.latestRecord)
+                    // Second row: 上次起飞 and 预留空间
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (state.latestRecord != null) {
+                                LastTakeoffMiniCard(latestRecord = state.latestRecord)
+                            } else {
+                                // Empty card for future use
+                                CuteCard {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.FlightTakeoff,
+                                                contentDescription = "上次起飞",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "上次起飞",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "暂无记录",
+                                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            // Reserved space for future use
+                            CuteCard {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Star,
+                                            contentDescription = "未来功能",
+                                            tint = MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "未来功能",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "敬请期待",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.tertiary
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -498,22 +563,22 @@ fun StatsCard(
     iconTint: Color
 ) {
     CuteCard {
-        Column {
+        Column(modifier = Modifier.padding(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = value,
@@ -548,26 +613,31 @@ fun HealthTipCard(frequency: Int, age: Int, todayCount: Int) {
     }
     
     val isHighFreq = todayCount >= 2 || frequency > maxRecommended
-    
-    CuteCard(
-        backgroundColor = if (isHighFreq) MaterialTheme.colorScheme.tertiaryContainer 
+    val backgroundColor = if (isHighFreq) MaterialTheme.colorScheme.tertiaryContainer 
                          else MaterialTheme.colorScheme.secondaryContainer
+    val contentColor = if (isHighFreq) MaterialTheme.colorScheme.onTertiaryContainer 
+                        else MaterialTheme.colorScheme.onSecondaryContainer
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(backgroundColor)
+            .padding(vertical = 24.dp, horizontal = 24.dp)
     ) {
         Column {
             Text(
                 text = "💡 健康小贴士",
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    color = if (isHighFreq) MaterialTheme.colorScheme.onTertiaryContainer 
-                            else MaterialTheme.colorScheme.onSecondaryContainer
+                    color = contentColor
                 )
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (isHighFreq) MaterialTheme.colorScheme.onTertiaryContainer 
-                        else MaterialTheme.colorScheme.onSecondaryContainer
+                color = contentColor
             )
         }
     }
@@ -579,6 +649,68 @@ fun getRecommendedWeeklyFrequency(age: Int): IntRange {
         in 26..35 -> 1..2
         in 36..45 -> 1..1
         else -> 1..1
+    }
+}
+
+@Composable
+fun LastTakeoffMiniCard(latestRecord: Record) {
+    val latestDateTime = LocalDateTime.ofInstant(
+        Instant.ofEpochMilli(latestRecord.timestamp),
+        ZoneId.systemDefault()
+    )
+    val formattedDate = latestDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.CHINA))
+    
+    val now = LocalDateTime.now()
+    val period = java.time.Period.between(latestDateTime.toLocalDate(), now.toLocalDate())
+    val duration = java.time.Duration.between(latestDateTime, now)
+    val years = period.years
+    val months = period.months
+    val days = period.days
+    val hours = duration.toHours() % 24
+    val minutes = duration.toMinutes() % 60
+    val seconds = duration.seconds % 60
+    
+    val timeSinceText = when {
+        years > 0 -> "${years}年前"
+        months > 0 -> "${months}个月前"
+        days > 2 -> "${days}天前"
+        days == 2 -> "前天"
+        days == 1 -> "昨天"
+        hours > 0 -> "${hours}小时"
+        minutes > 0 -> "${minutes}分钟前"
+        seconds > 0 -> "${seconds}秒前"
+        else -> "刚刚"
+    }
+    
+    CuteCard {
+        Column(modifier = Modifier.padding(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.FlightTakeoff,
+                    contentDescription = "上次起飞",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "上次起飞",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = timeSinceText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
@@ -603,8 +735,10 @@ fun LastTakeoffCard(latestRecord: Record) {
     val timeSinceText = when {
         years > 0 -> "${years}年前"
         months > 0 -> "${months}个月前"
-        days > 0 -> "${days}天前"
-        hours > 0 -> "${hours}小时前"
+        days > 2 -> "${days}天前"
+        days == 2 -> "前天"
+        days == 1 -> "昨天"
+        hours > 0 -> "${hours}小时"
         minutes > 0 -> "${minutes}分钟前"
         seconds > 0 -> "${seconds}秒前"
         else -> "刚刚"
