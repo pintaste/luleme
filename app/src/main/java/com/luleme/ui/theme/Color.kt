@@ -28,11 +28,11 @@ val ErrorContainerLight = Color(0xFFFFEBEE)
 val OnErrorContainerLight = Color(0xFFC62828)
 
 // Backgrounds & Surfaces
-val BackgroundLight = Color(0xFFF8FDFF) // Very slight blue tint for freshness
+val BackgroundLight = Color(0xFFFCFEFF) // Very slight blue tint for freshness, even lighter
 val OnBackgroundLight = Color(0xFF1A1C1E)
 val SurfaceLight = Color(0xFFFFFFFF)
 val OnSurfaceLight = Color(0xFF1A1C1E)
-val SurfaceVariantLight = Color(0xFFF0F4F8) // Slightly darker surface for cards
+val SurfaceVariantLight = Color(0xFFF5F9FC) // Slightly darker surface for cards, also lighter
 val OnSurfaceVariantLight = Color(0xFF42474E)
 val OutlineLight = Color(0xFF70777C)
 
