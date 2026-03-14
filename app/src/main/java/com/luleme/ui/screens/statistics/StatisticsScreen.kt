@@ -67,6 +67,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -84,6 +86,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.luleme.domain.model.Record
@@ -91,6 +94,7 @@ import com.luleme.ui.components.CuteCard
 import com.luleme.ui.theme.CutePink
 import com.luleme.ui.theme.CuteYellow
 import com.luleme.ui.theme.CuteBlue
+import com.luleme.ui.theme.PrimaryContainerLight
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -314,34 +318,55 @@ fun StatisticsScreen(
                         }
                     }
                     
-                    TimelineView(
-                        records = if (selectedDate != null && !showAllRecords) {
-                            uiState.allRecords.filter {
-                                LocalDateTime.ofInstant(Instant.ofEpochMilli(it.timestamp), ZoneId.systemDefault()).toLocalDate() == selectedDate
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        TimelineView(
+                            records = if (selectedDate != null && !showAllRecords) {
+                                uiState.allRecords.filter {
+                                    LocalDateTime.ofInstant(Instant.ofEpochMilli(it.timestamp), ZoneId.systemDefault()).toLocalDate() == selectedDate
+                                }
+                            } else {
+                                uiState.allRecords
+                            },
+                            onDeleteRecord = viewModel::deleteRecord,
+                            onAddRecord = { date ->
+                                selectedAddDate = date
+                                editingDate = date
+                                selectedHour = LocalTime.now().hour
+                                selectedMinute = LocalTime.now().minute
+                                showAddDialog = true
+                            },
+                            selectedDate = if (showAllRecords) null else selectedDate,
+                            onToggleView = if (selectedDate != null) {
+                                { showAllRecords = !showAllRecords }
+                            } else {
+                                null
+                            },
+                            showAll = showAllRecords,
+                            onDateClick = { date ->
+                                selectedDate = date
+                                showAllRecords = false
                             }
-                        } else {
-                            uiState.allRecords
-                        },
-                        onDeleteRecord = viewModel::deleteRecord,
-                        onAddRecord = { date ->
-                            selectedAddDate = date
-                            editingDate = date
-                            selectedHour = LocalTime.now().hour
-                            selectedMinute = LocalTime.now().minute
-                            showAddDialog = true
-                        },
-                        selectedDate = if (showAllRecords) null else selectedDate,
-                        onToggleView = if (selectedDate != null) {
-                            { showAllRecords = !showAllRecords }
-                        } else {
-                            null
-                        },
-                        showAll = showAllRecords,
-                        onDateClick = { date ->
-                            selectedDate = date
-                            showAllRecords = false
+                        )
+                        
+                        FloatingActionButton(
+                            onClick = {
+                                // 默认使用今天的日期
+                                val today = LocalDate.now()
+                                selectedAddDate = today
+                                editingDate = today
+                                selectedHour = LocalTime.now().hour
+                                selectedMinute = LocalTime.now().minute
+                                showAddDialog = true
+                            },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .align(Alignment.BottomEnd)
+                        ) {
+                            Icon(Icons.Rounded.Add, contentDescription = "添加记录", modifier = Modifier.size(24.dp))
                         }
-                    )
+                    }
                     
                     // 添加记录的对话框
                     if (showAddDialog && editingDate != null) {
@@ -776,57 +801,49 @@ fun DateHeader(
             .padding(vertical = 16.dp, horizontal = 20.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = date.format(dateFormatter),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable {
-                        onDateClick(date)
-                    }
-                )
-                
-                if (onToggleView != null) {
-                    TextButton(
-                        onClick = onToggleView,
-                        modifier = Modifier.padding(0.dp),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = date.format(dateFormatter),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            onDateClick(date)
+                        }
+                    )
+                    
+                    if (onToggleView != null) {
+                        TextButton(
+                            onClick = onToggleView,
+                            modifier = Modifier.padding(0.dp),
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
                         ) {
-                            Icon(
-                                imageVector = if (showAll) Icons.Rounded.CalendarToday else Icons.Rounded.CalendarViewWeek,
-                                contentDescription = if (showAll) "显示当天" else "显示全部",
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = if (showAll) "当天" else "全部",
-                                style = MaterialTheme.typography.labelSmall
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (showAll) Icons.Rounded.CalendarToday else Icons.Rounded.CalendarViewWeek,
+                                    contentDescription = if (showAll) "显示当天" else "显示全部",
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (showAll) "当天" else "全部",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
                         }
                     }
                 }
             }
-            
-            IconButton(onClick = onAddRecord) {
-                Icon(
-                    Icons.Rounded.Add,
-                    contentDescription = "添加记录",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
     }
 }
 
@@ -842,7 +859,7 @@ fun RecordItem(record: Record, onDeleteRecord: (Record) -> Unit) {
             .padding(vertical = 8.dp, horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
         colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = if (isCombat) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface
+            containerColor = if (isCombat) MaterialTheme.colorScheme.tertiaryContainer else PrimaryContainerLight
         )
     ) {
         Row(
@@ -855,9 +872,10 @@ fun RecordItem(record: Record, onDeleteRecord: (Record) -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = dateTime.format(formatter),
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (isCombat) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                     Text(
                         text = if (isCombat) "作战" else "起飞",
                         style = MaterialTheme.typography.labelSmall,
@@ -1008,30 +1026,36 @@ fun WeekView(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            IconButton(onClick = onPreviousWeek) {
-                Icon(Icons.Rounded.ChevronLeft, contentDescription = "上一周", modifier = Modifier.size(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onPreviousWeek) {
+                    Icon(Icons.Rounded.ChevronLeft, contentDescription = "上一周", modifier = Modifier.size(24.dp))
+                }
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Text(
+                        weekRange, 
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                IconButton(onClick = onNextWeek) {
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = "下一周", modifier = Modifier.size(24.dp))
+                }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                val total = weekData.values.sum()
-                Text(
-                    weekRange, 
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                Text(
-                    text = "$total",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            IconButton(onClick = onNextWeek) {
-                Icon(Icons.Rounded.ChevronRight, contentDescription = "下一周", modifier = Modifier.size(24.dp))
-            }
+            val total = weekData.values.sum()
+            Text(
+                text = "$total",
+                style = MaterialTheme.typography.displayLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -1043,7 +1067,7 @@ fun WeekView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(250.dp),
+                    .height(280.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -1121,15 +1145,46 @@ fun WeekView(
                                             .background(MaterialTheme.colorScheme.primary)
                                     )
                                 }
-                                
-                                // Always show count at bottom
-                                Text(
-                                    text = "$count",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
+                            }
+                        }
+                        
+                        // Always show count at bottom
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 8.dp)) {
+                            Text(
+                                text = "$count",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (takeoffCount > 0 || combatCount > 0) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (takeoffCount > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(MaterialTheme.colorScheme.primary)
+                                                .clip(RoundedCornerShape(2.dp))
+                                        )
+                                        Text(
+                                            text = "$takeoffCount",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (combatCount > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(MaterialTheme.colorScheme.error)
+                                                .clip(RoundedCornerShape(2.dp))
+                                        )
+                                        Text(
+                                            text = "$combatCount",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                         }
                         
@@ -1317,8 +1372,9 @@ fun MonthView(
                                                 ) {
                                                     Text(
                                                         text = takeoffCount.toString(),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color.White
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.Bold
                                                     )
                                                 }
                                             }
@@ -1335,8 +1391,9 @@ fun MonthView(
                                                 ) {
                                                     Text(
                                                         text = combatCount.toString(),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color.White
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.Bold
                                                     )
                                                 }
                                             }
