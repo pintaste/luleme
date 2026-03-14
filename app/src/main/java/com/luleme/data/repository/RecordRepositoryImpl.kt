@@ -23,18 +23,24 @@ class RecordRepositoryImpl @Inject constructor(
         return dao.getRecordsBetween(startDate, endDate).map { it.toDomain() }
     }
 
-    override suspend fun addRecord(note: String?) {
-        val today = LocalDate.now()
-        val dateString = today.format(DateTimeFormatter.ISO_DATE)
+    override suspend fun addRecord(type: String, note: String?) {
+        try {
+            val today = LocalDate.now()
+            val dateString = today.format(DateTimeFormatter.ISO_DATE)
 
-        val encryptedNote = note?.let { encryptionManager.encryptData(it) }
+            val encryptedNote = note?.let { encryptionManager.encryptData(it) }
 
-        val entity = RecordEntity(
-            timestamp = System.currentTimeMillis(),
-            date = dateString,
-            note = encryptedNote
-        )
-        dao.insertRecord(entity)
+            val entity = RecordEntity(
+                timestamp = System.currentTimeMillis(),
+                date = dateString,
+                type = type,
+                note = encryptedNote
+            )
+            dao.insertRecord(entity)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Handle error
+        }
     }
 
     override suspend fun deleteLatestTodayRecord() {
@@ -65,6 +71,7 @@ class RecordRepositoryImpl @Inject constructor(
                 id = 0, // Reset ID to avoid conflicts and auto-generate
                 timestamp = record.timestamp,
                 date = record.date,
+                type = record.type,
                 note = encryptedNote
             )
         }
@@ -81,6 +88,7 @@ class RecordRepositoryImpl @Inject constructor(
             id = this.id,
             timestamp = this.timestamp,
             date = this.date,
+            type = this.type,
             note = decryptedNote
         )
     }

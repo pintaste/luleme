@@ -21,7 +21,15 @@ sealed class HomeUiState {
     data class Success(
         val todayRecords: List<Record>,
         val weekCount: Int,
+        val combatCount: Int,
+        val todayTakeoffCount: Int,
+        val todayCombatCount: Int,
+        val monthTakeoffCount: Int,
+        val monthCombatCount: Int,
+        val totalTakeoffCount: Int,
+        val totalCombatCount: Int,
         val age: Int,
+        val overviewType: String?,
         val latestRecord: Record?
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
@@ -63,11 +71,41 @@ class HomeViewModel @Inject constructor(
                 
                 val settings = userSettingsRepository.getSettings()
                 val age = settings?.age ?: 25 // Default age
+                
+                // Calculate combat count for this week
+                val combatCount = weekRecords.count { it.type == "作战" }
+                
+                // Calculate today's takeoff and combat counts
+                val todayTakeoffCount = todayRecords.count { it.type == "起飞" }
+                val todayCombatCount = todayRecords.count { it.type == "作战" }
+                
+                // Calculate this month's records
+                val startOfMonth = today.with(TemporalAdjusters.firstDayOfMonth())
+                val endOfMonth = today.with(TemporalAdjusters.lastDayOfMonth())
+                val monthRecords = recordRepository.getRecordsBetween(
+                    startOfMonth.format(DateTimeFormatter.ISO_DATE),
+                    endOfMonth.format(DateTimeFormatter.ISO_DATE)
+                )
+                val monthTakeoffCount = monthRecords.count { it.type == "起飞" }
+                val monthCombatCount = monthRecords.count { it.type == "作战" }
+                
+                // Calculate all time records
+                val allRecords = recordRepository.getAllRecords()
+                val totalTakeoffCount = allRecords.count { it.type == "起飞" }
+                val totalCombatCount = allRecords.count { it.type == "作战" }
 
                 _uiState.value = HomeUiState.Success(
                     todayRecords = todayRecords,
                     weekCount = weekRecords.size,
+                    combatCount = combatCount,
+                    todayTakeoffCount = todayTakeoffCount,
+                    todayCombatCount = todayCombatCount,
+                    monthTakeoffCount = monthTakeoffCount,
+                    monthCombatCount = monthCombatCount,
+                    totalTakeoffCount = totalTakeoffCount,
+                    totalCombatCount = totalCombatCount,
                     age = age,
+                    overviewType = settings?.overviewType,
                     latestRecord = latestRecord
                 )
             } catch (e: Exception) {
@@ -84,10 +122,10 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun recordToday() {
+    fun recordToday(type: String = "起飞") {
         viewModelScope.launch {
             try {
-                recordRepository.addRecord()
+                recordRepository.addRecord(type)
                 loadData(showLoading = false)
             } catch (e: Exception) {
                 // Handle error
@@ -102,6 +140,32 @@ class HomeViewModel @Inject constructor(
                 loadData(showLoading = false)
             } catch (e: Exception) {
                 // Handle error
+            }
+        }
+    }
+
+    fun saveOverviewType(overviewType: String) {
+        viewModelScope.launch {
+            try {
+                val settings = userSettingsRepository.getSettings()
+                if (settings != null) {
+                    val updatedSettings = settings.copy(overviewType = overviewType)
+                    userSettingsRepository.saveSettings(updatedSettings)
+                } else {
+                    // Create default settings if none exist
+                    val defaultSettings = com.luleme.domain.model.UserSettings(
+                        age = 25, // Default age
+                        birthYear = null,
+                        gender = null,
+                        lockEnabled = false,
+                        pinHash = null,
+                        overviewType = overviewType
+                    )
+                    userSettingsRepository.saveSettings(defaultSettings)
+                }
+            } catch (e: Exception) {
+                // Handle error
+                e.printStackTrace()
             }
         }
     }

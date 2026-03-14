@@ -20,8 +20,14 @@ import javax.inject.Inject
 
 data class StatisticsUiState(
     val weekData: Map<DayOfWeek, Int> = emptyMap(),
+    val weekTakeoffData: Map<DayOfWeek, Int> = emptyMap(),
+    val weekCombatData: Map<DayOfWeek, Int> = emptyMap(),
     val monthData: Map<LocalDate, Int> = emptyMap(),
+    val monthTakeoffData: Map<LocalDate, Int> = emptyMap(),
+    val monthCombatData: Map<LocalDate, Int> = emptyMap(),
     val allRecords: List<Record> = emptyList(),
+    val takeoffCount: Int = 0,
+    val combatCount: Int = 0,
     val totalCount: Int = 0,
     val maxStreak: Int = 0,
     val averageFrequency: Float = 0f,
@@ -56,24 +62,40 @@ class StatisticsViewModel @Inject constructor(
             // Week Data
             val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             val weekData = mutableMapOf<DayOfWeek, Int>()
+            val weekTakeoffData = mutableMapOf<DayOfWeek, Int>()
+            val weekCombatData = mutableMapOf<DayOfWeek, Int>()
             for (i in 0..6) {
                 val date = startOfWeek.plusDays(i.toLong())
-                val count = allRecords.count { it.date == date.format(DateTimeFormatter.ISO_DATE) }
+                val dateStr = date.format(DateTimeFormatter.ISO_DATE)
+                val count = allRecords.count { it.date == dateStr }
+                val takeoffCount = allRecords.count { it.date == dateStr && it.type == "起飞" }
+                val combatCount = allRecords.count { it.date == dateStr && it.type == "作战" }
                 weekData[date.dayOfWeek] = count
+                weekTakeoffData[date.dayOfWeek] = takeoffCount
+                weekCombatData[date.dayOfWeek] = combatCount
             }
 
             // Month Data (Current Month)
             val startOfMonth = today.with(TemporalAdjusters.firstDayOfMonth())
             val lengthOfMonth = today.lengthOfMonth()
             val monthData = mutableMapOf<LocalDate, Int>()
+            val monthTakeoffData = mutableMapOf<LocalDate, Int>()
+            val monthCombatData = mutableMapOf<LocalDate, Int>()
             for (i in 0 until lengthOfMonth) {
                 val date = startOfMonth.plusDays(i.toLong())
-                val count = allRecords.count { it.date == date.format(DateTimeFormatter.ISO_DATE) }
+                val dateStr = date.format(DateTimeFormatter.ISO_DATE)
+                val count = allRecords.count { it.date == dateStr }
+                val takeoffCount = allRecords.count { it.date == dateStr && it.type == "起飞" }
+                val combatCount = allRecords.count { it.date == dateStr && it.type == "作战" }
                 monthData[date] = count
+                monthTakeoffData[date] = takeoffCount
+                monthCombatData[date] = combatCount
             }
 
             // All Time Stats
             val totalCount = allRecords.size
+            val takeoffCount = allRecords.count { it.type == "起飞" }
+            val combatCount = allRecords.count { it.type == "作战" }
             val maxStreak = calculateMaxStreak(allRecords)
             
             val firstRecord = allRecords.minByOrNull { it.timestamp }
@@ -87,8 +109,14 @@ class StatisticsViewModel @Inject constructor(
 
             _uiState.value = _uiState.value.copy(
                 weekData = weekData,
+                weekTakeoffData = weekTakeoffData,
+                weekCombatData = weekCombatData,
                 monthData = monthData,
+                monthTakeoffData = monthTakeoffData,
+                monthCombatData = monthCombatData,
                 allRecords = allRecords.sortedByDescending { it.timestamp },
+                takeoffCount = takeoffCount,
+                combatCount = combatCount,
                 totalCount = totalCount,
                 maxStreak = maxStreak,
                 averageFrequency = average,

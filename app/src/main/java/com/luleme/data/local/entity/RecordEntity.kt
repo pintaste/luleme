@@ -15,6 +15,9 @@ data class RecordEntity(
     @ColumnInfo(name = "date")
     val date: String,              // yyyy-MM-dd
     
+    @ColumnInfo(name = "type")
+    val type: String = "起飞",      // 起飞或作战
+    
     @ColumnInfo(name = "note")
     val note: String? = null,      // Optional note (encrypted)
     
