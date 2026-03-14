@@ -23,6 +23,8 @@ import javax.inject.Inject
 
 data class SettingsUiState(
     val age: Int = 25,
+    val birthYear: Int? = null,
+    val gender: String? = null,
     val lockEnabled: Boolean = false,
     val hasPin: Boolean = false
 )
@@ -50,14 +52,16 @@ class SettingsViewModel @Inject constructor(
                 currentPinHash = settings.pinHash
                 _uiState.value = SettingsUiState(
                     age = settings.age,
+                    birthYear = settings.birthYear,
+                    gender = settings.gender,
                     lockEnabled = settings.lockEnabled,
                     hasPin = settings.pinHash != null
                 )
             } else {
                 // Initialize default settings
-                val default = UserSettings(25, false, null)
+                val default = UserSettings(25, null, null, false, null)
                 userSettingsRepository.saveSettings(default)
-                _uiState.value = SettingsUiState(25, false, false)
+                _uiState.value = SettingsUiState(25, null, null, false, false)
             }
         }
     }
@@ -101,12 +105,37 @@ class SettingsViewModel @Inject constructor(
         userSettingsRepository.saveSettings(
             UserSettings(
                 age = state.age,
+                birthYear = state.birthYear,
+                gender = state.gender,
                 lockEnabled = state.lockEnabled,
                 pinHash = pinHash
             )
         )
         _uiState.value = state.copy(hasPin = pinHash != null)
         currentPinHash = pinHash
+    }
+
+    fun updateBirthYear(birthYear: Int?) {
+        viewModelScope.launch {
+            val current = _uiState.value
+            val newState = current.copy(birthYear = birthYear)
+            // Calculate age from birth year if provided
+            val calculatedAge = birthYear?.let { calculateAge(it) }
+            val finalState = calculatedAge?.let { newState.copy(age = it) } ?: newState
+            saveSettings(finalState, currentPinHash)
+        }
+    }
+
+    fun updateGender(gender: String?) {
+        viewModelScope.launch {
+            val current = _uiState.value
+            saveSettings(current.copy(gender = gender), currentPinHash)
+        }
+    }
+
+    private fun calculateAge(birthYear: Int): Int {
+        val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        return currentYear - birthYear
     }
     
     private fun hashPin(pin: String): String {
@@ -182,11 +211,13 @@ class SettingsViewModel @Inject constructor(
             val date = parseString(obj.get("date")) ?: return@forEach
             val id = parseLong(obj.get("id")) ?: 0L
             val note = parseString(obj.get("note"))
+            val type = parseString(obj.get("type")) ?: "起飞" // Default type for compatibility
             records.add(
                 Record(
                     id = id,
                     timestamp = timestamp,
                     date = date,
+                    type = type,
                     note = note
                 )
             )

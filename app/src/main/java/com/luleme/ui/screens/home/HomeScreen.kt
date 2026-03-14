@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -29,18 +30,25 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FlightTakeoff
+import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +72,7 @@ import com.luleme.ui.components.CuteCard
 import com.luleme.ui.theme.CuteOrange
 import com.luleme.ui.theme.CutePink
 import com.luleme.ui.theme.CuteYellow
+import com.luleme.ui.theme.CuteBlue
 import com.luleme.ui.theme.SecondaryLight
 import java.time.Duration
 import java.time.Instant
@@ -115,20 +124,39 @@ fun HomeScreen(
             is HomeUiState.Success -> {
                 HomeContent(
                     state = state,
-                    onRecordClick = { viewModel.recordToday() },
-                    onUndoClick = { viewModel.undoTodayRecord() }
+                    onRecordClick = { viewModel.recordToday("起飞") },
+                    onCombatClick = { viewModel.recordToday("作战") },
+                    onUndoClick = { viewModel.undoTodayRecord() },
+                    onSaveOverviewType = { viewModel.saveOverviewType(it) }
                 )
             }
         }
     }
 }
 
+enum class OverviewType { TODAY, WEEK, MONTH, ALL }
+
 @Composable
 fun HomeContent(
     state: HomeUiState.Success,
     onRecordClick: () -> Unit,
-    onUndoClick: () -> Unit
+    onCombatClick: () -> Unit,
+    onUndoClick: () -> Unit,
+    onSaveOverviewType: (String) -> Unit
 ) {
+    val hasRecordedToday = state.todayRecords.isNotEmpty()
+    val takeoffCount = state.weekCount - state.combatCount
+    val initialOverview = state.overviewType?.let {
+        when (it) {
+            "TODAY" -> OverviewType.TODAY
+            "WEEK" -> OverviewType.WEEK
+            "MONTH" -> OverviewType.MONTH
+            "ALL" -> OverviewType.ALL
+            else -> OverviewType.TODAY
+        }
+    } ?: OverviewType.TODAY
+    var currentOverview by remember { mutableStateOf(initialOverview) }
+    
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 100.dp), // Space for FAB
@@ -142,7 +170,7 @@ fun HomeContent(
         // 2. Main Status Card
         item {
             Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                TodayStatusCard(todayCount = state.todayRecords.size)
+                TodayStatusCard(todayCount = state.todayTakeoffCount + state.todayCombatCount)
             }
         }
 
@@ -150,99 +178,260 @@ fun HomeContent(
         item {
             Box(modifier = Modifier.padding(horizontal = 24.dp).padding(top = 8.dp)) {
                 Column {
-                    Text(
-                        text = "本周概览",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    // First row: 次数 and 状态
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            StatsCard(
-                                title = "次数",
-                                value = "${state.weekCount}",
-                                unit = "次",
-                                icon = Icons.Rounded.Star,
-                                iconTint = CuteYellow
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = when (currentOverview) {
+                                    OverviewType.TODAY -> "今日概览"
+                                    OverviewType.WEEK -> "本周概览"
+                                    OverviewType.MONTH -> "本月概览"
+                                    OverviewType.ALL -> "全部概览"
+                                },
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            StatsCard(
-                                title = "状态",
-                                value = if (state.todayRecords.isNotEmpty()) "贤者模式" else "活跃",
-                                unit = "",
-                                icon = Icons.Rounded.Favorite,
-                                iconTint = CutePink
-                            )
+                            IconButton(
+                                onClick = { 
+                                    currentOverview = when (currentOverview) {
+                                        OverviewType.TODAY -> OverviewType.WEEK
+                                        OverviewType.WEEK -> OverviewType.MONTH
+                                        OverviewType.MONTH -> OverviewType.ALL
+                                        OverviewType.ALL -> OverviewType.TODAY
+                                    }
+                                    onSaveOverviewType(currentOverview.name)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SwapHoriz,
+                                    contentDescription = "切换概览",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
                     
-                    // Second row: 上次起飞 and 预留空间
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            if (state.latestRecord != null) {
-                                LastTakeoffMiniCard(latestRecord = state.latestRecord)
-                            } else {
-                                // Empty card for future use
-                                CuteCard {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.FlightTakeoff,
-                                                contentDescription = "上次起飞",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = "上次起飞",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            text = "暂无记录",
-                                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    when (currentOverview) {
+                        OverviewType.TODAY -> {
+                            // 今日概览：四宫格分别是 起飞 作战 上次发射 状态
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "起飞",
+                                        value = "${state.todayTakeoffCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.FlightTakeoff,
+                                        iconTint = CuteBlue
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "作战",
+                                        value = "${state.todayCombatCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.SportsEsports,
+                                        iconTint = CutePink
+                                    )
+                                }
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (state.latestRecord != null) {
+                                        LastTakeoffMiniCard(latestRecord = state.latestRecord)
+                                    } else {
+                                        // Use StatsCard for consistent sizing
+                                        StatsCard(
+                                            title = "上次发射",
+                                            value = "暂无记录",
+                                            unit = "",
+                                            icon = Icons.Rounded.FlightTakeoff,
+                                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "状态",
+                                        value = if (hasRecordedToday) "贤者模式" else "活跃",
+                                        unit = "",
+                                        icon = Icons.Rounded.Favorite,
+                                        iconTint = CutePink
+                                    )
+                                }
+                            }
+                        }
+                        OverviewType.WEEK -> {
+                            // 本周概览：四宫格分别是 起飞 作战 总计 上次发射
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "起飞",
+                                        value = "${takeoffCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.FlightTakeoff,
+                                        iconTint = CuteBlue
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "作战",
+                                        value = "${state.combatCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.SportsEsports,
+                                        iconTint = CutePink
+                                    )
+                                }
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "总计",
+                                        value = "${state.weekCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.Star,
+                                        iconTint = CuteYellow
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (state.latestRecord != null) {
+                                        LastTakeoffMiniCard(latestRecord = state.latestRecord)
+                                    } else {
+                                        // Use StatsCard for consistent sizing
+                                        StatsCard(
+                                            title = "上次发射",
+                                            value = "暂无记录",
+                                            unit = "",
+                                            icon = Icons.Rounded.FlightTakeoff,
+                                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         )
                                     }
                                 }
                             }
                         }
-                        Box(modifier = Modifier.weight(1f)) {
-                            // Reserved space for future use
-                            CuteCard {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Star,
-                                            contentDescription = "未来功能",
-                                            tint = MaterialTheme.colorScheme.tertiary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "未来功能",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        OverviewType.MONTH -> {
+                            // 本月概览：四宫格分别是 起飞 作战 总计 上次发射
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "起飞",
+                                        value = "${state.monthTakeoffCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.FlightTakeoff,
+                                        iconTint = CuteBlue
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "作战",
+                                        value = "${state.monthCombatCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.SportsEsports,
+                                        iconTint = CutePink
+                                    )
+                                }
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "总计",
+                                        value = "${state.monthTakeoffCount + state.monthCombatCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.Star,
+                                        iconTint = CuteYellow
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (state.latestRecord != null) {
+                                        LastTakeoffMiniCard(latestRecord = state.latestRecord)
+                                    } else {
+                                        // Use StatsCard for consistent sizing
+                                        StatsCard(
+                                            title = "上次发射",
+                                            value = "暂无记录",
+                                            unit = "",
+                                            icon = Icons.Rounded.FlightTakeoff,
+                                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "敬请期待",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.tertiary
+                                }
+                            }
+                        }
+                        OverviewType.ALL -> {
+                            // 全部概览：四宫格分别是 起飞 作战 总计 上次发射
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "起飞",
+                                        value = "${state.totalTakeoffCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.FlightTakeoff,
+                                        iconTint = CuteBlue
                                     )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "作战",
+                                        value = "${state.totalCombatCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.SportsEsports,
+                                        iconTint = CutePink
+                                    )
+                                }
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    StatsCard(
+                                        title = "总计",
+                                        value = "${state.totalTakeoffCount + state.totalCombatCount}",
+                                        unit = "次",
+                                        icon = Icons.Rounded.Star,
+                                        iconTint = CuteYellow
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (state.latestRecord != null) {
+                                        LastTakeoffMiniCard(latestRecord = state.latestRecord)
+                                    } else {
+                                        // Use StatsCard for consistent sizing
+                                        StatsCard(
+                                            title = "上次发射",
+                                            value = "暂无记录",
+                                            unit = "",
+                                            icon = Icons.Rounded.FlightTakeoff,
+                                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -276,9 +465,9 @@ fun HomeContent(
         ) {
             // 撤销按钮 - 只在有今日记录时显示
             AnimatedVisibility(
-                visible = state.todayRecords.isNotEmpty(),
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it }
+                visible = hasRecordedToday,
+                enter = fadeIn(animationSpec = tween(durationMillis = 200)) + slideInVertically(animationSpec = tween(durationMillis = 200)) { it },
+                exit = fadeOut(animationSpec = tween(durationMillis = 200)) + slideOutVertically(animationSpec = tween(durationMillis = 200)) { it }
             ) {
                 UndoButton(
                     todayCount = state.todayRecords.size,
@@ -288,8 +477,14 @@ fun HomeContent(
 
             // 起飞按钮
             TakeoffButton(
-                hasRecordedToday = state.todayRecords.isNotEmpty(),
+                hasRecordedToday = hasRecordedToday,
                 onTakeoff = onRecordClick
+            )
+
+            // 作战按钮
+            CombatButton(
+                hasRecordedToday = hasRecordedToday,
+                onCombat = onCombatClick
             )
         }
     }
@@ -305,10 +500,7 @@ fun UndoButton(
 
     val scale by animateFloatAsState(
         targetValue = if (isUndoing) 0.85f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = tween(durationMillis = 150),
         label = "undo_button_scale"
     )
 
@@ -325,28 +517,23 @@ fun UndoButton(
         }
     }
 
-    Button(
+    FloatingActionButton(
         onClick = { handleUndo() },
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 0.dp
-        ),
-        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.error,
         modifier = Modifier
-            .height(48.dp)
-            .scale(scale)
+            .size(48.dp)
+            .scale(scale),
+        elevation = FloatingActionButtonDefaults.elevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 1.dp
+        )
     ) {
         Icon(
-            Icons.AutoMirrored.Rounded.Undo,
+            imageVector = Icons.AutoMirrored.Rounded.Undo,
             contentDescription = "撤销起飞",
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("撤销")
     }
 }
 
@@ -357,35 +544,26 @@ fun TakeoffButton(
 ) {
     val scope = rememberCoroutineScope()
     var isTakingOff by remember { mutableStateOf(false) }
-    // Using a counter to trigger AnimatedContent even if state is same
-    var animationTrigger by remember { mutableIntStateOf(0) }
 
     val scale by animateFloatAsState(
         targetValue = if (isTakingOff) 0.85f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = tween(durationMillis = 150),
         label = "button_scale"
     )
 
     val handleTakeoff = {
         if (!isTakingOff) {
             isTakingOff = true
-            animationTrigger++
             
             scope.launch {
-                // 1. Play the "Takeoff" animation first
-                // Wait for the icon to fly up and fade out (approx 300-400ms visual)
-                delay(350) 
+                // 1. Play the scale animation first
+                delay(200) // Shorter delay for more responsive feel
                 
                 // 2. Commit the record
-                // This will trigger a recomposition and likely switch the button style
                 onTakeoff()
                 
-                // 3. Reset animation state
-                // Allow a small buffer for the UI to settle
-                delay(150)
+                // 3. Reset animation state after UI settles
+                delay(200)
                 isTakingOff = false
             }
         }
@@ -394,60 +572,133 @@ fun TakeoffButton(
     if (!hasRecordedToday) {
         ExtendedFloatingActionButton(
             onClick = { handleTakeoff() },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = CuteBlue.copy(alpha = 0.8f),
+            contentColor = Color.White,
             modifier = Modifier
-                .height(64.dp)
-                .padding(horizontal = 32.dp)
+                .height(56.dp)
+                .padding(horizontal = 24.dp)
                 .scale(scale),
             shape = MaterialTheme.shapes.extraLarge,
             elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
-                defaultElevation = 6.dp,
-                pressedElevation = 2.dp
+                defaultElevation = 2.dp,
+                pressedElevation = 1.dp
             )
         ) {
-            AnimatedContent(
-                targetState = animationTrigger,
-                transitionSpec = {
-                    // Fly up animation: New icon comes from bottom, Old icon goes to top
-                    (slideInVertically { height -> height } + fadeIn()) togetherWith
-                    (slideOutVertically { height -> -height } + fadeOut())
-                },
-                label = "icon_anim"
-            ) { 
-                Icon(Icons.Rounded.FlightTakeoff, contentDescription = null)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.FlightTakeoff, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    "起飞！",
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1
+                )
             }
-            Spacer(modifier = Modifier.size(12.dp))
-            Text(
-                "起飞",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-            )
         }
     } else {
         Button(
             onClick = { handleTakeoff() },
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                contentColor = CuteBlue
             ),
-            elevation = ButtonDefaults.buttonElevation(0.dp),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 1.dp
+            ),
             shape = MaterialTheme.shapes.extraLarge,
             modifier = Modifier
-                .height(48.dp)
+                .height(40.dp)
+                .padding(horizontal = 12.dp)
                 .scale(scale)
         ) {
-            AnimatedContent(
-                targetState = animationTrigger,
-                transitionSpec = {
-                    (slideInVertically { height -> height } + fadeIn()) togetherWith
-                    (slideOutVertically { height -> -height } + fadeOut())
-                },
-                label = "icon_anim_small"
-            ) {
-                Icon(Icons.Rounded.FlightTakeoff, contentDescription = null, modifier = Modifier.size(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.FlightTakeoff, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("起飞！", maxLines = 1, style = MaterialTheme.typography.bodyMedium)
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("又起飞了？")
+        }
+    }
+}
+
+@Composable
+fun CombatButton(
+    hasRecordedToday: Boolean,
+    onCombat: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var isCombatting by remember { mutableStateOf(false) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isCombatting) 0.85f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "combat_button_scale"
+    )
+
+    val handleCombat = {
+        if (!isCombatting) {
+            isCombatting = true
+            
+            scope.launch {
+                // 1. Play the scale animation first
+                delay(200) // Shorter delay for more responsive feel
+                
+                // 2. Commit the record
+                onCombat()
+                
+                // 3. Reset animation state after UI settles
+                delay(200)
+                isCombatting = false
+            }
+        }
+    }
+
+    if (!hasRecordedToday) {
+        ExtendedFloatingActionButton(
+            onClick = { handleCombat() },
+            containerColor = CutePink.copy(alpha = 0.8f),
+            contentColor = MaterialTheme.colorScheme.onError,
+            modifier = Modifier
+                .height(56.dp)
+                .padding(horizontal = 24.dp)
+                .scale(scale),
+            shape = MaterialTheme.shapes.extraLarge,
+            elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 1.dp
+            )
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.SportsEsports, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    "作战！",
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1
+                )
+            }
+        }
+    } else {
+        Button(
+            onClick = { handleCombat() },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                contentColor = CutePink
+            ),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 1.dp
+            ),
+            shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier
+                .height(40.dp)
+                .padding(horizontal = 12.dp)
+                .scale(scale)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.SportsEsports, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("作战！", maxLines = 1, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }
@@ -478,11 +729,11 @@ fun HeaderSection() {
             )
             Spacer(modifier = Modifier.size(8.dp))
             Icon(
-                imageVector = Icons.Rounded.WbSunny,
-                contentDescription = null,
-                tint = CuteOrange,
-                modifier = Modifier.size(28.dp)
-            )
+                    imageVector = getGreetingIcon(),
+                    contentDescription = null,
+                    tint = if (getGreetingIcon() == Icons.Rounded.NightsStay) MaterialTheme.colorScheme.primary else CuteOrange,
+                    modifier = Modifier.size(28.dp)
+                )
         }
     }
 }
@@ -496,6 +747,14 @@ fun getGreetingMessage(): String {
         in 13..17 -> "下午好！机长"
         else -> "晚上好！机长"
     }
+}
+
+fun getGreetingIcon() = when (LocalTime.now().hour) {
+    in 0..4 -> Icons.Rounded.NightsStay
+    in 5..10 -> Icons.Rounded.WbSunny
+    in 11..12 -> Icons.Rounded.WbSunny
+    in 13..17 -> Icons.Rounded.WbSunny
+    else -> Icons.Rounded.NightsStay
 }
 
 @Composable
@@ -535,7 +794,7 @@ fun TodayStatusCard(todayCount: Int) {
             
             Column {
                 Text(
-                    text = if (hasRecordedToday) "今日已起飞 $todayCount 次 ✨" else "今日还没起飞",
+                    text = if (hasRecordedToday) "今日已发射 $todayCount 次 ✨" else "今日还没发射",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = if (hasRecordedToday) Color.White else MaterialTheme.colorScheme.onSurface
@@ -563,8 +822,15 @@ fun StatsCard(
     iconTint: Color
 ) {
     CuteCard {
-        Column(modifier = Modifier.padding(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.padding(6.dp).height(88.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 标题行
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
@@ -578,22 +844,42 @@ fun StatsCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                )
-                if (unit.isNotEmpty()) {
+            
+            // 数值行
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    verticalAlignment = Alignment.Bottom
+                ) {
                     Text(
-                        text = unit,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 4.dp, start = 4.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = value,
+                        style = if (value == "暂无记录") {
+                            MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        } else if (value in listOf("活跃", "贤者模式")) {
+                            MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        } else {
+                            MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     )
+                    if (unit.isNotEmpty()) {
+                        Text(
+                            text = unit,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp, start = 4.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -606,8 +892,8 @@ fun HealthTipCard(frequency: Int, age: Int, todayCount: Int) {
     val maxRecommended = recommended.last
     
     val message = when {
-        todayCount >= 2 -> "今天起飞有点多次啦，注意身体哦机长 ✈️"
-        todayCount == 1 -> "今天已经起飞啦，心情不错吧~ ✨"
+        todayCount >= 2 -> "今天发射有点多次啦，注意身体哦机长 ✈️"
+        todayCount == 1 -> "今天已经发射啦，心情不错吧~ ✨"
         frequency > maxRecommended -> "最近有点频繁呢，注意劳逸结合哦 💙"
         else -> "节奏很健康！继续保持~ ✨"
     }
@@ -676,40 +962,65 @@ fun LastTakeoffMiniCard(latestRecord: Record) {
         days > 2 -> "${days}天前"
         days == 2 -> "前天"
         days == 1 -> "昨天"
-        hours > 0 -> "${hours}小时"
+        hours > 0 -> "${hours}小时前"
         minutes > 0 -> "${minutes}分钟前"
         seconds > 0 -> "${seconds}秒前"
         else -> "刚刚"
     }
     
+    val isCombat = latestRecord.type == "作战"
+    val title = if (isCombat) "上次作战" else "上次发射"
+    val icon = if (isCombat) Icons.Rounded.SportsEsports else Icons.Rounded.FlightTakeoff
+    val iconTint = if (isCombat) CutePink else CuteBlue
+    
     CuteCard {
-        Column(modifier = Modifier.padding(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.padding(6.dp).height(88.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 标题行
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Icon(
-                    imageVector = Icons.Rounded.FlightTakeoff,
-                    contentDescription = "上次起飞",
-                    tint = MaterialTheme.colorScheme.primary,
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconTint,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "上次起飞",
+                    text = title,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = formattedDate,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = timeSinceText,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
+            
+            // 日期行
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = formattedDate,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+            }
+            
+            // 时间间隔行
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = timeSinceText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = iconTint
+                )
+            }
         }
     }
 }
@@ -720,7 +1031,7 @@ fun LastTakeoffCard(latestRecord: Record) {
         Instant.ofEpochMilli(latestRecord.timestamp),
         ZoneId.systemDefault()
     )
-    val formattedDate = latestDateTime.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日", Locale.CHINA))
+    val formattedDate = latestDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.CHINA))
     
     val now = LocalDateTime.now()
     val period = java.time.Period.between(latestDateTime.toLocalDate(), now.toLocalDate())
@@ -738,7 +1049,7 @@ fun LastTakeoffCard(latestRecord: Record) {
         days > 2 -> "${days}天前"
         days == 2 -> "前天"
         days == 1 -> "昨天"
-        hours > 0 -> "${hours}小时"
+        hours > 0 -> "${hours}小时前"
         minutes > 0 -> "${minutes}分钟前"
         seconds > 0 -> "${seconds}秒前"
         else -> "刚刚"
@@ -760,6 +1071,7 @@ fun LastTakeoffCard(latestRecord: Record) {
                 Text(
                     text = "上次起飞",
                     style = MaterialTheme.typography.labelMedium,
+
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -781,4 +1093,36 @@ fun LastTakeoffCard(latestRecord: Record) {
             }
         }
     }
+}
+
+@Preview(showBackground = true, device = "spec:width=360dp,height=800dp")
+@Composable
+fun HomeScreenPreview() {
+    val mockState = HomeUiState.Success(
+        todayRecords = emptyList(),
+        todayTakeoffCount = 0,
+        todayCombatCount = 0,
+        weekCount = 5,
+        combatCount = 2,
+        monthTakeoffCount = 15,
+        monthCombatCount = 6,
+        totalTakeoffCount = 100,
+        totalCombatCount = 40,
+        latestRecord = com.luleme.domain.model.Record(
+            id = 1,
+            timestamp = System.currentTimeMillis() - 3600000,
+            date = "2026-03-14",
+            type = "起飞"
+        ),
+        overviewType = "TODAY",
+        age = 25
+    )
+    
+    HomeContent(
+        state = mockState,
+        onRecordClick = {},
+        onCombatClick = {},
+        onUndoClick = {},
+        onSaveOverviewType = {}
+    )
 }

@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.luleme.ui.components.pin.NumPad
 import com.luleme.ui.components.pin.PinDots
@@ -147,4 +148,10 @@ fun LockScreen(
             }
         }
     }
+}
+
+@Preview(showBackground = true, device = "spec:width=360dp,height=800dp")
+@Composable
+fun LockScreenPreview() {
+    LockScreen(onUnlocked = {})
 }

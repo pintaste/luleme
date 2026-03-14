@@ -19,10 +19,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Man
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Upload
+import androidx.compose.material.icons.rounded.Woman
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,6 +49,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -179,32 +184,148 @@ fun SettingsScreen(
         item {
             SettingGroup(title = "个人信息") {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // 年龄显示和编辑
+                    var showEditDialog by remember { mutableStateOf(false) }
+                    
+                    // 年龄显示
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Face,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.padding(8.dp))
+                        // 根据性别显示不同的图标和颜色
+                        val (genderIcon, iconTint) = when (uiState.gender) {
+                            "男" -> Pair(Icons.Rounded.Man, MaterialTheme.colorScheme.primary)
+                            "女" -> Pair(Icons.Rounded.Woman, CutePink)
+                            else -> Pair(Icons.Rounded.Face, SecondaryLight)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .padding(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = genderIcon,
+                                contentDescription = null,
+                                tint = iconTint
+                            )
+                        }
+                        Spacer(modifier = Modifier.padding(12.dp))
                         Text(
                             text = "年龄: ${uiState.age} 岁",
                             style = MaterialTheme.typography.titleMedium
                         )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    showEditDialog = true
+                                }
+                                .padding(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "编辑个人信息",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Slider(
-                        value = uiState.age.toFloat(),
-                        onValueChange = { viewModel.updateAge(it.toInt()) },
-                        valueRange = 18f..100f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary,
-                            inactiveTrackColor = MaterialTheme.colorScheme.primaryContainer
+                    
+                    // 个人信息编辑对话框
+                    if (showEditDialog) {
+                        var selectedYear by remember { mutableStateOf(uiState.birthYear ?: 2000) }
+                        var selectedGender by remember { mutableStateOf(uiState.gender ?: "") }
+                        AlertDialog(
+                            onDismissRequest = { showEditDialog = false },
+                            title = { Text("编辑个人信息") },
+                            text = {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    // 出生年份选择
+                                    Column {
+                                        Text("出生年份:")
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("当前选择: $selectedYear")
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Slider(
+                                            value = selectedYear.toFloat(),
+                                            onValueChange = { selectedYear = it.toInt() },
+                                            valueRange = 1900f..2026f,
+                                            steps = 125,
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = MaterialTheme.colorScheme.primary,
+                                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                                inactiveTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                            )
+                                        )
+                                    }
+                                    
+                                    // 性别选择
+                                    Column {
+                                        Text("性别:")
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            horizontalArrangement = Arrangement.SpaceEvenly
+                                        ) {
+                                            listOf("男", "女", "其他").forEach { gender ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(
+                                                            if (selectedGender == gender) {
+                                                                MaterialTheme.colorScheme.primary
+                                                            } else {
+                                                                MaterialTheme.colorScheme.surfaceVariant
+                                                            },
+                                                            RoundedCornerShape(8.dp)
+                                                        )
+                                                        .clickable {
+                                                            selectedGender = gender
+                                                        }
+                                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = gender,
+                                                        color = if (selectedGender == gender) {
+                                                            MaterialTheme.colorScheme.onPrimary
+                                                        } else {
+                                                            MaterialTheme.colorScheme.onSurface
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showEditDialog = false
+                                        viewModel.updateBirthYear(selectedYear)
+                                        viewModel.updateGender(selectedGender)
+                                    }
+                                ) {
+                                    Text("确认")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showEditDialog = false }) {
+                                    Text("取消")
+                                }
+                            }
                         )
-                    )
+                    }
                 }
             }
         }
@@ -415,4 +536,10 @@ fun PinSetupDialog(
             }
         }
     }
+}
+
+@Preview(showBackground = true, device = "spec:width=360dp,height=800dp")
+@Composable
+fun SettingsScreenPreview() {
+    SettingsScreen()
 }

@@ -21,16 +21,22 @@ class UserSettingsRepositoryImpl @Inject constructor(
     private fun UserSettingsEntity.toDomain(): UserSettings {
         return UserSettings(
             age = this.age,
+            birthYear = this.birthYear,
+            gender = this.gender,
             lockEnabled = this.lockEnabled,
-            pinHash = this.pinHash
+            pinHash = this.pinHash,
+            overviewType = this.overviewType
         )
     }
 
     private fun UserSettings.toEntity(): UserSettingsEntity {
         return UserSettingsEntity(
             age = this.age,
+            birthYear = this.birthYear,
+            gender = this.gender,
             lockEnabled = this.lockEnabled,
-            pinHash = this.pinHash
+            pinHash = this.pinHash,
+            overviewType = this.overviewType
         )
     }
 }

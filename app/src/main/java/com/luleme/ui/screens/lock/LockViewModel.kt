@@ -28,10 +28,18 @@ class LockViewModel @Inject constructor(
 
     private fun loadSettings() {
         viewModelScope.launch {
-            val settings = userSettingsRepository.getSettings()
-            pinHash = settings?.pinHash
-            isLockEnabled = settings?.lockEnabled ?: false
-            _isLoading.value = false
+            try {
+                val settings = userSettingsRepository.getSettings()
+                pinHash = settings?.pinHash
+                isLockEnabled = settings?.lockEnabled ?: false
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Default to no lock if settings fail to load
+                pinHash = null
+                isLockEnabled = false
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 

@@ -39,12 +39,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowDropUp
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.CalendarViewWeek
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FlightTakeoff
+import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -81,11 +84,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.luleme.domain.model.Record
 import com.luleme.ui.components.CuteCard
 import com.luleme.ui.theme.CutePink
 import com.luleme.ui.theme.CuteYellow
+import com.luleme.ui.theme.CuteBlue
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -205,6 +210,8 @@ fun StatisticsScreen(
                     
                     WeekView(
                         weekData = weekData,
+                        weekTakeoffData = uiState.weekTakeoffData,
+                        weekCombatData = uiState.weekCombatData,
                         currentWeek = currentWeek,
                         onDayClick = { date ->
                             selectedDate = date
@@ -220,6 +227,8 @@ fun StatisticsScreen(
                     val monthsToShow = 3 // 显示当前月和前2个月
                     val months = mutableListOf<LocalDate>()
                     val monthDataMap = remember { mutableStateOf<Map<LocalDate, Map<LocalDate, Int>>>(emptyMap()) }
+                    val monthTakeoffDataMap = remember { mutableStateOf<Map<LocalDate, Map<LocalDate, Int>>>(emptyMap()) }
+                    val monthCombatDataMap = remember { mutableStateOf<Map<LocalDate, Map<LocalDate, Int>>>(emptyMap()) }
                     
                     // 计算要显示的月份：当前月和历史月份
                     for (i in 0 until monthsToShow) {
@@ -229,10 +238,37 @@ fun StatisticsScreen(
                     // 当记录变化时重新加载月份数据
                     LaunchedEffect(months, uiState.allRecords) {
                         val newMonthDataMap = mutableMapOf<LocalDate, Map<LocalDate, Int>>()
+                        val newMonthTakeoffDataMap = mutableMapOf<LocalDate, Map<LocalDate, Int>>()
+                        val newMonthCombatDataMap = mutableMapOf<LocalDate, Map<LocalDate, Int>>()
                         months.forEach {
-                            newMonthDataMap[it] = viewModel.getMonthData(it)
+                            val monthRecords = uiState.allRecords.filter { record ->
+                                LocalDate.parse(record.date).month == it.month && LocalDate.parse(record.date).year == it.year
+                            }
+                            val monthData = mutableMapOf<LocalDate, Int>()
+                            val monthTakeoffData = mutableMapOf<LocalDate, Int>()
+                            val monthCombatData = mutableMapOf<LocalDate, Int>()
+                            
+                            val startOfMonth = it.with(TemporalAdjusters.firstDayOfMonth())
+                            val lengthOfMonth = it.lengthOfMonth()
+                            
+                            for (i in 0 until lengthOfMonth) {
+                                val date = startOfMonth.plusDays(i.toLong())
+                                val dateStr = date.format(DateTimeFormatter.ISO_DATE)
+                                val count = monthRecords.count { record -> record.date == dateStr }
+                                val takeoffCount = monthRecords.count { record -> record.date == dateStr && record.type == "起飞" }
+                                val combatCount = monthRecords.count { record -> record.date == dateStr && record.type == "作战" }
+                                monthData[date] = count
+                                monthTakeoffData[date] = takeoffCount
+                                monthCombatData[date] = combatCount
+                            }
+                            
+                            newMonthDataMap[it] = monthData
+                            newMonthTakeoffDataMap[it] = monthTakeoffData
+                            newMonthCombatDataMap[it] = monthCombatData
                         }
                         monthDataMap.value = newMonthDataMap
+                        monthTakeoffDataMap.value = newMonthTakeoffDataMap
+                        monthCombatDataMap.value = newMonthCombatDataMap
                     }
                     
                     // 垂直滚动显示多个月份
@@ -244,6 +280,8 @@ fun StatisticsScreen(
                             item {
                                 MonthView(
                                     monthData = monthDataMap.value.getOrDefault(month, emptyMap()),
+                                    monthTakeoffData = monthTakeoffDataMap.value.getOrDefault(month, emptyMap()),
+                                    monthCombatData = monthCombatDataMap.value.getOrDefault(month, emptyMap()),
                                     currentMonth = month,
                                     onDateClick = { date ->
                                         selectedDate = date
@@ -307,11 +345,44 @@ fun StatisticsScreen(
                     
                     // 添加记录的对话框
                     if (showAddDialog && editingDate != null) {
+                        var selectedType by remember { mutableStateOf("起飞") }
+                        
                         AlertDialog(
                             onDismissRequest = { showAddDialog = false },
                             title = { Text("添加记录") },
                             text = {
                                 Column {
+                                    // 记录类型选择
+                                    Text("记录类型:")
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Button(
+                                            onClick = { selectedType = "起飞" },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (selectedType == "起飞") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                                contentColor = if (selectedType == "起飞") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            ),
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Text("起飞")
+                                        }
+                                        Button(
+                                            onClick = { selectedType = "作战" },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (selectedType == "作战") MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant,
+                                                contentColor = if (selectedType == "作战") MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            ),
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Text("作战")
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    
                                     // 日期选择器
                                     Text("选择日期:")
                                     Spacer(modifier = Modifier.height(12.dp))
@@ -521,7 +592,8 @@ fun StatisticsScreen(
                                             id = System.currentTimeMillis(),
                                             timestamp = timestamp,
                                             date = editingDate!!.format(DateTimeFormatter.ISO_DATE),
-                                            note = null
+                                            note = null,
+                                            type = selectedType
                                         )
                                         // 添加记录
                                         viewModel.addRecord(newRecord)
@@ -696,7 +768,7 @@ fun DateHeader(
     showAll: Boolean = false,
     onDateClick: (LocalDate) -> Unit
 ) {
-    val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日 EEEE", Locale.CHINA)
+    val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd EEEE", Locale.CHINA)
     
     Box(
         modifier = Modifier
@@ -762,12 +834,16 @@ fun DateHeader(
 fun RecordItem(record: Record, onDeleteRecord: (Record) -> Unit) {
     val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp), ZoneId.systemDefault())
     val formatter = DateTimeFormatter.ofPattern("HH:mm")
+    val isCombat = record.type == "作战"
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp, horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = if (isCombat) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier
@@ -776,10 +852,18 @@ fun RecordItem(record: Record, onDeleteRecord: (Record) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = dateTime.format(formatter),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = dateTime.format(formatter),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isCombat) "作战" else "起飞",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isCombat) CutePink else CuteBlue
+                    )
+                }
                 if (!record.note.isNullOrEmpty()) {
                     Text(
                         text = record.note,
@@ -829,6 +913,25 @@ fun AllTimeView(uiState: StatisticsUiState) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            StatCard(
+                title = "起飞次数",
+                value = "${uiState.takeoffCount}",
+                icon = Icons.Rounded.FlightTakeoff,
+                color = CuteBlue,
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                title = "作战次数",
+                value = "${uiState.combatCount}",
+                icon = Icons.Rounded.SportsEsports,
+                color = CutePink,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
         CuteCard {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("记录统计", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
@@ -836,6 +939,8 @@ fun AllTimeView(uiState: StatisticsUiState) {
                 
                 StatRow("本周平均", "%.1f 次/天".format(uiState.totalCount.toFloat() / 7))
                 StatRow("本月累计", "${uiState.monthData.values.sum()} 次")
+                StatRow("起飞占比", "%.1f%%".format(if (uiState.totalCount > 0) uiState.takeoffCount.toFloat() / uiState.totalCount * 100 else 0f))
+                StatRow("作战占比", "%.1f%%".format(if (uiState.totalCount > 0) uiState.combatCount.toFloat() / uiState.totalCount * 100 else 0f))
                 StatRow("活跃天数", "${uiState.allRecords.map { 
                     Instant.ofEpochMilli(it.timestamp).atZone(ZoneId.systemDefault()).toLocalDate() 
                 }.distinct().size} 天")
@@ -885,6 +990,8 @@ fun StatRow(label: String, value: String) {
 @Composable
 fun WeekView(
     weekData: Map<DayOfWeek, Int>,
+    weekTakeoffData: Map<DayOfWeek, Int>,
+    weekCombatData: Map<DayOfWeek, Int>,
     currentWeek: LocalDate,
     onDayClick: (LocalDate) -> Unit,
     onPreviousWeek: () -> Unit,
@@ -909,15 +1016,18 @@ fun WeekView(
             IconButton(onClick = onPreviousWeek) {
                 Icon(Icons.Rounded.ChevronLeft, contentDescription = "上一周", modifier = Modifier.size(24.dp))
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 val total = weekData.values.sum()
+                Text(
+                    weekRange, 
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
                 Text(
                     text = "$total",
                     style = MaterialTheme.typography.displayLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Text("周记录", style = MaterialTheme.typography.bodyMedium)
-                Text(weekRange, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onNextWeek) {
                 Icon(Icons.Rounded.ChevronRight, contentDescription = "下一周", modifier = Modifier.size(24.dp))
@@ -939,18 +1049,32 @@ fun WeekView(
             ) {
                 DayOfWeek.entries.forEach { day ->
                     val count = weekData[day] ?: 0
+                    val takeoffCount = weekTakeoffData[day] ?: 0
+                    val combatCount = weekCombatData[day] ?: 0
                     val isSelected = selectedDay == day
-                    val heightFraction = if (maxCount > 0) count.toFloat() / maxCount else 0f
+                    val totalHeightFraction = if (maxCount > 0) count.toFloat() / maxCount else 0f
+                    val takeoffHeightFraction = if (maxCount > 0) takeoffCount.toFloat() / maxCount else 0f
+                    val combatHeightFraction = if (maxCount > 0) combatCount.toFloat() / maxCount else 0f
                     
-                    var animatedHeight by remember { mutableStateOf(0f) }
+                    var animatedTakeoffHeight by remember { mutableStateOf(0f) }
+                    var animatedCombatHeight by remember { mutableStateOf(0f) }
                     
-                    LaunchedEffect(count) {
-                        animatedHeight = heightFraction
+                    LaunchedEffect(takeoffCount) {
+                        animatedTakeoffHeight = takeoffHeightFraction
                     }
                     
-                    val animatedFraction by animateFloatAsState(
-                        targetValue = animatedHeight,
+                    LaunchedEffect(combatCount) {
+                        animatedCombatHeight = combatHeightFraction
+                    }
+                    
+                    val animatedTakeoffFraction by animateFloatAsState(
+                        targetValue = animatedTakeoffHeight,
                         animationSpec = tween(durationMillis = 800, delayMillis = day.ordinal * 100)
+                    )
+                    
+                    val animatedCombatFraction by animateFloatAsState(
+                        targetValue = animatedCombatHeight,
+                        animationSpec = tween(durationMillis = 800, delayMillis = day.ordinal * 100 + 100)
                     )
 
                     Column(
@@ -985,20 +1109,27 @@ fun WeekView(
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
                                 
-                                Box(
-                                    modifier = Modifier
-                                        .width(16.dp)
-                                        .fillMaxHeight(if (animatedFraction < 0.05f && count > 0) 0.05f else animatedFraction.coerceAtLeast(0.02f))
-                                        .clip(RoundedCornerShape(50))
-                                        .background(
-                                            brush = Brush.verticalGradient(
-                                                colors = listOf(
-                                                    MaterialTheme.colorScheme.primary,
-                                                    MaterialTheme.colorScheme.tertiary
-                                                )
-                                            )
-                                        )
-                                )
+                                // Combat bar (bottom)
+                                if (combatCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(16.dp)
+                                            .fillMaxHeight(if (animatedCombatFraction < 0.05f) 0.05f else animatedCombatFraction.coerceAtLeast(0.02f))
+                                            .clip(RoundedCornerShape(bottomStart = 50.dp, bottomEnd = 50.dp))
+                                            .background(MaterialTheme.colorScheme.error)
+                                    )
+                                }
+                                
+                                // Takeoff bar (top)
+                                if (takeoffCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(16.dp)
+                                            .fillMaxHeight(if (animatedTakeoffFraction < 0.05f) 0.05f else animatedTakeoffFraction.coerceAtLeast(0.02f))
+                                            .clip(if (combatCount > 0) RoundedCornerShape(topStart = 50.dp, topEnd = 50.dp) else RoundedCornerShape(50.dp))
+                                            .background(MaterialTheme.colorScheme.primary)
+                                    )
+                                }
                             }
                         }
                         
@@ -1022,12 +1153,44 @@ fun WeekView(
                 }
             }
         }
+        
+        // 图例
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clip(RoundedCornerShape(4.dp))
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("起飞", style = MaterialTheme.typography.labelSmall)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(MaterialTheme.colorScheme.error)
+                        .clip(RoundedCornerShape(4.dp))
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("作战", style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }
 
 @Composable
 fun MonthView(
     monthData: Map<LocalDate, Int>,
+    monthTakeoffData: Map<LocalDate, Int>,
+    monthCombatData: Map<LocalDate, Int>,
     currentMonth: LocalDate,
     onDateClick: (LocalDate) -> Unit,
     onLoadPreviousMonth: () -> Unit
@@ -1117,7 +1280,8 @@ fun MonthView(
                             ) {
                                 if (date != null) {
                                     val isToday = date == today
-                                    val recordCount = monthData[date] ?: 0
+                                    val takeoffCount = monthTakeoffData[date] ?: 0
+                                    val combatCount = monthCombatData[date] ?: 0
                                     
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1136,31 +1300,48 @@ fun MonthView(
                                                 color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                             )
                                         }
-                                        if (recordCount > 0) {
-                                            // 根据记录数量设置不同的背景颜色
-                                            val backgroundColor = when {
-                                                recordCount >= 5 -> MaterialTheme.colorScheme.error
-                                                recordCount >= 3 -> MaterialTheme.colorScheme.tertiary
-                                                else -> MaterialTheme.colorScheme.primary
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        ) {
+                                            // 起飞点
+                                            if (takeoffCount > 0) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .background(
+                                                            MaterialTheme.colorScheme.primary,
+                                                            shape = CircleShape
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = takeoffCount.toString(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color.White
+                                                    )
+                                                }
                                             }
-                                            
-                                            Box(
-                                                modifier = Modifier
-                                                    .padding(top = 4.dp)
-                                                    .size(16.dp)
-                                                    .background(
-                                                        backgroundColor,
-                                                        shape = CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = recordCount.toString(),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.White
-                                                )
+                                            // 作战点
+                                            if (combatCount > 0) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .background(
+                                                            CutePink,
+                                                            shape = CircleShape
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = combatCount.toString(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color.White
+                                                    )
+                                                }
                                             }
-                                        } else {
+                                        }
+                                        if (takeoffCount == 0 && combatCount == 0) {
                                             // 为了保持高度一致，添加一个占位符
                                             Spacer(modifier = Modifier.height(20.dp))
                                         }
@@ -1195,4 +1376,10 @@ fun MonthView(
         
 
     }
+}
+
+@Preview(showBackground = true, device = "spec:width=360dp,height=800dp")
+@Composable
+fun StatisticsScreenPreview() {
+    StatisticsScreen()
 }
