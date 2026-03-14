@@ -9,27 +9,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ebcb19b3-facf-4c16-ad26-0198d6248cf2" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/VERSION" beforeDir="false" afterPath="$PROJECT_DIR$/VERSION" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/local/database/AppDatabase.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/local/database/AppDatabase.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/local/entity/RecordEntity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/local/entity/RecordEntity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/local/entity/UserSettingsEntity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/local/entity/UserSettingsEntity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/repository/RecordRepositoryImpl.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/repository/RecordRepositoryImpl.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/repository/UserSettingsRepositoryImpl.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/data/repository/UserSettingsRepositoryImpl.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/domain/model/Record.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/domain/model/Record.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/domain/model/UserSettings.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/domain/model/UserSettings.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/domain/repository/RecordRepository.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/domain/repository/RecordRepository.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/home/HomeScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/home/HomeScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/home/HomeViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/home/HomeViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/lock/LockScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/lock/LockScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/lock/LockViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/lock/LockViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/settings/SettingsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/settings/SettingsScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/settings/SettingsViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/settings/SettingsViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/statistics/StatisticsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/statistics/StatisticsScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/statistics/StatisticsViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/screens/statistics/StatisticsViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/theme/Color.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/luleme/ui/theme/Color.kt" afterDir="false" />
-    </list>
+    <list default="true" id="ebcb19b3-facf-4c16-ad26-0198d6248cf2" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
