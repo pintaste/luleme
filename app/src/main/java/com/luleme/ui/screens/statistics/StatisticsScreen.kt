@@ -1100,15 +1100,6 @@ fun WeekView(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Bottom
                             ) {
-                                // Always show count
-                                Text(
-                                    text = "$count",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                                
                                 // Combat bar (bottom)
                                 if (combatCount > 0) {
                                     Box(
@@ -1130,6 +1121,15 @@ fun WeekView(
                                             .background(MaterialTheme.colorScheme.primary)
                                     )
                                 }
+                                
+                                // Always show count at bottom
+                                Text(
+                                    text = "$count",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
                             }
                         }
                         
