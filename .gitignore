@@ -1,0 +1,35 @@
+# Android build artifacts
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Kotlin
+*.class
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# IDEs
+*.idea/
+*.iws
+out/
+
+# Log files
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

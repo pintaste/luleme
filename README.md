@@ -1,68 +1,48 @@
-## 撸了么
+# luleme · 撸了么
 
-帮助机长起飞的健康记录安卓APP。
+Android health tracking app for aviation professionals. Log daily health metrics, track trends over time, and get AI-powered insights on your physical condition and readiness.
 
-## 功能特点
-- 隐私安全：数据完全本地存储，无网络上传。
-- 快捷记录：一键记录每日状态，支持撤销与补录。
-- 数据统计：提供周视图和月度热力图，直观展示频率趋势。
-- 健康建议：根据年龄和频率提供个性化健康提醒。
-- 现代设计：基于 Material Design 3 的流畅动画与界面。
-- 周视图：支持历史周记录查看，可跳转至时间线视图。
-- 月视图：支持历史月记录显示。
-- 时间线视图：增加记录间隔显示，清晰展示记录时间分布。
-- 主页四宫格：包含次数、状态、上次起飞和未来功能卡片。
+> Fork of [sky22333/luleme](https://github.com/sky22333/luleme), extended with AI health analysis features.
 
-## 技术栈
-- 语言：Kotlin
-- UI 框架：Jetpack Compose
-- 架构：MVVM, Hilt (依赖注入)
-- 数据库：Room
-- 图表：自定义 Compose 图表组件
+---
 
-## 预览图
+## Features
 
-<div style="display:inline-block">
-<img src=".github/demo/1.jpg" alt="demo1" width="200">
-<img src=".github/demo/2.jpg" alt="demo2" width="200">
-<img src=".github/demo/3.jpg" alt="demo3" width="200">
-</div>
+- **Daily health logging** — record sleep, exercise, and key vitals
+- **Timeline & calendar views** — visualize health trends over days, weeks, and months
+- **AI health analysis** *(in progress)* — LLM-powered insights on patterns, anomalies, and personalized recommendations based on your logged data
+- **Offline-first** — all data stored locally, no account required
+- **Material Design** — clean Android-native UI
 
-## 版本历史
+## Tech Stack
 
-### v1.0.7 (2026-03-14)
-- 优化周视图，将次数显示移动到柱状图底部，提升数据可读性
-- 调整周日期范围显示，确保其位于两个导航按钮的中间
+| | |
+|--|--|
+| **Language** | Kotlin · Java |
+| **UI** | Android SDK · Material Design |
+| **Storage** | Room Database |
+| **AI** | Claude API / OpenAI API *(planned)* |
 
-### v1.0.6 (2026-03-14)
-- 新增新的记录类型作战
-- 主页增加作战记录卡片
-- 撤销功能添加对作战记录的支持
-- 本周概览添加多时间维度且支持切换显示
-- 周视图/月视图/时间线视图添加对新记录的支持
-- 导入导入功能支持新的数据类型且向前兼容旧数据
+## AI Analysis *(Roadmap)*
 
-### v1.0.5 (2026-03-13)
-- 在设置页面添加个人信息功能，支持输入出生年和选择性别
-- 根据选择的性别显示不同的图标和颜色
-- 年龄根据出生年自动计算
-- 优化设置页面的UI设计，与整体应用风格保持一致
+Planned AI features:
+- **Pattern detection** — identify correlations between sleep, exercise, and performance metrics
+- **Personalized recommendations** — actionable suggestions based on your health history
+- **Anomaly alerts** — flag unusual readings that may need attention
+- **Natural language summaries** — weekly/monthly health report in plain language
 
-### v1.0.4 (2026-03-13)
-- 重命名[本周]为[周视图]，增加时间线视图跳转和历史周记录查看
-- 重命名[本月]为[月视图]，增加历史月记录显示
-- 时间线视图增加记录间隔显示
-- 主页本周概况修改为四宫格布局，增加[上次起飞]卡片和[未来功能]卡片
+Implementation plan: lightweight FastAPI backend endpoint that receives anonymized health snapshots and returns Claude API analysis.
 
-### v1.0.3 (2026-03-13)
-- 新增时间线视图，实现记录的添加和删除功能
-- 新增月视图和时间线视图的联动，点击月视图中的日期可直接跳转到时间线视图
-- 新增点击日期筛选当天记录的功能，显示"全部"按钮方便切换视图
-- 优化时间线视图的UI设计，日期和"全部"按钮显示在同一行
+## Build
 
-### v1.0.2
-- 新增撤销功能，用户可以撤销误操作的删除
-- 修复了时间选择器显示不完整的问题
-- 优化了UI的自适应能力
-- 简化了添加记录的对话框，移除了备注字段
-- 添加了时间选择器，让用户可以选择具体的起飞时间
+```bash
+git clone https://github.com/pintaste/luleme.git
+# Open in Android Studio
+# Build > Make Project
+```
+
+Minimum SDK: Android 8.0 (API 26)
+
+## License
+
+MIT
